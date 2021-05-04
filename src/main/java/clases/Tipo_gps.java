@@ -3,25 +3,25 @@ package clases;
 
 public class Tipo_gps {
 	
-	Integer id;
+	Integer idtipo_gps;
 	Float x;
 	Float y;
-	Long timestamp;
+	Integer idsensor;
 	
-	public Tipo_gps(Integer id,Float x,Float y, Long timestamp) {
+	public Tipo_gps(Integer idtipo_gps,Float x,Float y, Integer idsensor) {
 		super();
-		this.id=id;
+		this.idtipo_gps=idtipo_gps;
 		this.x=x;
 		this.y=y;
-		this.timestamp=timestamp;
+		this.idsensor=idsensor;
 	}
 
-	public Integer getId() {
-		return id;
+	public Integer getIdtipo_gps() {
+		return idtipo_gps;
 	}
 
-	public void setId(Integer id) {
-		this.id = id;
+	public void setIdtipo_gps(Integer idtipo_gps) {
+		this.idtipo_gps = idtipo_gps;
 	}
 
 	public Float getX() {
@@ -40,22 +40,22 @@ public class Tipo_gps {
 		this.y = y;
 	}
 
-	public Long getTimestamp() {
-		return timestamp;
+	public Integer getIdsensor() {
+		return idsensor;
 	}
 
-	public void setTimestamp(Long timestamp) {
-		this.timestamp = timestamp;
+	public void setIdsensor(Integer idsensor) {
+		this.idsensor = idsensor;
 	}
 
 	@Override
 	public int hashCode() {
 		final int prime = 31;
 		int result = 1;
-		result = prime * result + id;
-		result = prime * result + (int) (timestamp ^ (timestamp >>> 32));
-		result = prime * result + Float.floatToIntBits(x);
-		result = prime * result + Float.floatToIntBits(y);
+		result = prime * result + ((idsensor == null) ? 0 : idsensor.hashCode());
+		result = prime * result + ((idtipo_gps == null) ? 0 : idtipo_gps.hashCode());
+		result = prime * result + ((x == null) ? 0 : x.hashCode());
+		result = prime * result + ((y == null) ? 0 : y.hashCode());
 		return result;
 	}
 
@@ -68,13 +68,25 @@ public class Tipo_gps {
 		if (getClass() != obj.getClass())
 			return false;
 		Tipo_gps other = (Tipo_gps) obj;
-		if (id != other.id)
+		if (idsensor == null) {
+			if (other.idsensor != null)
+				return false;
+		} else if (!idsensor.equals(other.idsensor))
 			return false;
-		if (timestamp != other.timestamp)
+		if (idtipo_gps == null) {
+			if (other.idtipo_gps != null)
+				return false;
+		} else if (!idtipo_gps.equals(other.idtipo_gps))
 			return false;
-		if (Float.floatToIntBits(x) != Float.floatToIntBits(other.x))
+		if (x == null) {
+			if (other.x != null)
+				return false;
+		} else if (!x.equals(other.x))
 			return false;
-		if (Float.floatToIntBits(y) != Float.floatToIntBits(other.y))
+		if (y == null) {
+			if (other.y != null)
+				return false;
+		} else if (!y.equals(other.y))
 			return false;
 		return true;
 	}

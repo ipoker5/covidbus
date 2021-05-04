@@ -65,9 +65,12 @@ public class ApiRest extends AbstractVerticle{
 		router.get("/api/sensor/:idsensor").handler(this::getSensor);
 		router.get("/api/tipoSensor/:idtipo_sensor").handler(this::getTipoSensor);
 		router.get("/api/tipoSensorGPS/:idtipo_gps").handler(this::getSensorGPS);
+		router.post("/api/PostGPS/").handler(this::postTipo_GPS);
+		router.post("/api/PostSensor/").handler(this::postTipo_Sensor);
 		
 		router.get("/api/actuador/:idactuador").handler(this::getActuador);
 		router.get("/api/tipoActuador/:idtipo_actuador").handler(this::getTipoActuador);
+		router.post("/api/PostActuador/").handler(this::postTipo_Actuador);
 		
 		
 		getAll();
@@ -300,7 +303,7 @@ public class ApiRest extends AbstractVerticle{
 					result.add(JsonObject.mapFrom(new Tipo_gps(elem.getInteger("idtipo_gps"),
 							elem.getFloat("x"),
 							elem.getFloat("y"),
-							elem.getLong("timestamp"))));
+							elem.getInteger("idsensor"))));
 				}
 				routingContext.response().setStatusCode(200).putHeader("content-type", "application/json")
 				.end(result.encodePrettily());
@@ -387,6 +390,51 @@ public class ApiRest extends AbstractVerticle{
 				if (handler.succeeded()) {
 					routingContext.response().setStatusCode(200).putHeader("content-type", "application/json")
 							.end(JsonObject.mapFrom(dispositivo).encodePrettily());
+					}else {
+						routingContext.response().setStatusCode(401).putHeader("content-type", "application/json")
+						.end((JsonObject.mapFrom(handler.cause()).encodePrettily()));
+				}
+			});
+		
+	}
+	private void postTipo_GPS(RoutingContext routingContext){
+		Tipo_gps tipo_gps = Json.decodeValue(routingContext.getBodyAsString(), Tipo_gps.class);	
+		mySqlClient.preparedQuery("INSERT INTO tipo_gps (idtipo_gps, x, y, idsensor) VALUES (?,?,?,?)",
+				Tuple.of(tipo_gps.getIdtipo_gps(), tipo_gps.getX(),
+						tipo_gps.getY(), tipo_gps.getIdsensor()),handler -> {	
+				if (handler.succeeded()) {
+					routingContext.response().setStatusCode(200).putHeader("content-type", "application/json")
+							.end(JsonObject.mapFrom(tipo_gps).encodePrettily());
+					}else {
+						routingContext.response().setStatusCode(401).putHeader("content-type", "application/json")
+						.end((JsonObject.mapFrom(handler.cause()).encodePrettily()));
+				}
+			});
+		
+	}
+	private void postTipo_Sensor(RoutingContext routingContext){
+		Tipo_sensor tipo_sensor = Json.decodeValue(routingContext.getBodyAsString(), Tipo_sensor.class);	
+		mySqlClient.preparedQuery("INSERT INTO tipo_sensor (idtipo_sensor, valor, idsensor) VALUES (?,?,?)",
+				Tuple.of(tipo_sensor.getIdtipo_sensor(), tipo_sensor.getValor(),
+						tipo_sensor.getIdsensor()),handler -> {	
+				if (handler.succeeded()) {
+					routingContext.response().setStatusCode(200).putHeader("content-type", "application/json")
+							.end(JsonObject.mapFrom(tipo_sensor).encodePrettily());
+					}else {
+						routingContext.response().setStatusCode(401).putHeader("content-type", "application/json")
+						.end((JsonObject.mapFrom(handler.cause()).encodePrettily()));
+				}
+			});
+		
+	}
+	private void postTipo_Actuador(RoutingContext routingContext){
+		Tipo_actuador tipo_actuador = Json.decodeValue(routingContext.getBodyAsString(), 		Tipo_actuador.class);	
+		mySqlClient.preparedQuery("INSERT INTO tipo_actuador (idtipo_actuador, valor, modo, idsensor) VALUES (?,?,?,?)",
+				Tuple.of(tipo_actuador.getIdtipo_actuador(), tipo_actuador.getValor(),
+						tipo_actuador.getModo(),tipo_actuador.getIdactuador()),handler -> {	
+				if (handler.succeeded()) {
+					routingContext.response().setStatusCode(200).putHeader("content-type", "application/json")
+							.end(JsonObject.mapFrom(tipo_actuador).encodePrettily());
 					}else {
 						routingContext.response().setStatusCode(401).putHeader("content-type", "application/json")
 						.end((JsonObject.mapFrom(handler.cause()).encodePrettily()));
