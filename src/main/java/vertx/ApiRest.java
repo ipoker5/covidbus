@@ -252,7 +252,7 @@ public class ApiRest extends AbstractVerticle{
 				
 				for (Row elem : resultSet) {
 					result.add(JsonObject.mapFrom(new Tipo_actuador(elem.getInteger("idtipo_actuador"),
-							elem.getInteger("valor"),
+							elem.getFloat("valor"),
 							elem.getInteger("modo"),
 							elem.getInteger("idactuador"))));
 				}
@@ -360,7 +360,7 @@ public class ApiRest extends AbstractVerticle{
 		Integer iddispositivo=Integer.parseInt(routingContext.request().getParam("iddispositivo"));
 		mySqlClient.query("DELETE FROM covidbus.dispositivo WHERE iddispositivo =  " + iddispositivo,handler -> {		
 			if (handler.succeeded()) {						
-				routingContext.response().setStatusCode(200).putHeader("content-type", "application/json").end("Usuario borrado correctamente");
+				routingContext.response().setStatusCode(200).putHeader("content-type", "application/json").end("Dispositivo borrado correctamente");
 			}else {
 					routingContext.response().setStatusCode(401).putHeader("content-type", "application/json")
 					.end((JsonObject.mapFrom(handler.cause()).encodePrettily()));
@@ -374,7 +374,7 @@ public class ApiRest extends AbstractVerticle{
 						usuario.getContraseña(), usuario.getCiudad()),handler -> {	
 				if (handler.succeeded()) {
 					routingContext.response().setStatusCode(200).putHeader("content-type", "application/json")
-							.end(JsonObject.mapFrom(usuario).encodePrettily());
+							.end(JsonObject.mapFrom(handler.cause()).encodePrettily());
 					}else {
 						routingContext.response().setStatusCode(401).putHeader("content-type", "application/json")
 						.end((JsonObject.mapFrom(handler.cause()).encodePrettily()));
@@ -428,8 +428,8 @@ public class ApiRest extends AbstractVerticle{
 		
 	}
 	private void postTipo_Actuador(RoutingContext routingContext){
-		Tipo_actuador tipo_actuador = Json.decodeValue(routingContext.getBodyAsString(), 		Tipo_actuador.class);	
-		mySqlClient.preparedQuery("INSERT INTO tipo_actuador (idtipo_actuador, valor, modo, idsensor) VALUES (?,?,?,?)",
+		Tipo_actuador tipo_actuador = Json.decodeValue(routingContext.getBodyAsString(), Tipo_actuador.class);	
+		mySqlClient.preparedQuery("INSERT INTO tipo_actuador (idtipo_actuador, valor, modo, idactuador) VALUES (?,?,?,?)",
 				Tuple.of(tipo_actuador.getIdtipo_actuador(), tipo_actuador.getValor(),
 						tipo_actuador.getModo(),tipo_actuador.getIdactuador()),handler -> {	
 				if (handler.succeeded()) {

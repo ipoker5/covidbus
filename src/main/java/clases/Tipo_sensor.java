@@ -1,13 +1,13 @@
 package clases;
 
-
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 public class Tipo_sensor {
 	Integer idtipo_sensor;
 	Float valor;
 	Integer idsensor;
 	
-	public Tipo_sensor(Integer idtipo_sensor, Float valor, Integer idsensor) {
+	public Tipo_sensor(@JsonProperty("idtipo_sensor")Integer idtipo_sensor, @JsonProperty("valor")Float valor, @JsonProperty("idsensor")Integer idsensor) {
 		super();
 		this.idtipo_sensor = idtipo_sensor;
 		this.valor = valor;

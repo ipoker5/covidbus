@@ -1,14 +1,16 @@
 package clases;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 public class Tipo_actuador {
 	Integer idtipo_actuador;
-	Integer valor;
+	Float valor;
 	Integer modo;
 	Integer idactuador;
 	
 
-	public Tipo_actuador(Integer idtipo_actuador,Integer valor, Integer modo, Integer idactuador) {
+	public Tipo_actuador(@JsonProperty("idtipo_actuador")Integer idtipo_actuador,@JsonProperty("valor")Float valor,
+			@JsonProperty("modo")Integer modo, @JsonProperty("idactuador")Integer idactuador) {
 		super();
 		this.idtipo_actuador=idtipo_actuador;
 		this.valor = valor;
@@ -27,12 +29,12 @@ public class Tipo_actuador {
 	}
 
 
-	public Integer getValor() {
+	public Float getValor() {
 		return valor;
 	}
 
 
-	public void setValor(Integer valor) {
+	public void setValor(Float valor) {
 		this.valor = valor;
 	}
 
@@ -45,6 +47,7 @@ public class Tipo_actuador {
 	public void setModo(Integer modo) {
 		this.modo = modo;
 	}
+
 
 	public Integer getIdactuador() {
 		return idactuador;
@@ -101,6 +104,4 @@ public class Tipo_actuador {
 	}
 
 
-	
-	
 }

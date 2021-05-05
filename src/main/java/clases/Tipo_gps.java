@@ -1,5 +1,6 @@
 package clases;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 public class Tipo_gps {
 	
@@ -8,7 +9,7 @@ public class Tipo_gps {
 	Float y;
 	Integer idsensor;
 	
-	public Tipo_gps(Integer idtipo_gps,Float x,Float y, Integer idsensor) {
+	public Tipo_gps(@JsonProperty("idtipo_gps")Integer idtipo_gps,@JsonProperty("x")Float x,@JsonProperty("y")Float y,@JsonProperty("idsensor") Integer idsensor) {
 		super();
 		this.idtipo_gps=idtipo_gps;
 		this.x=x;
