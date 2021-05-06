@@ -185,6 +185,7 @@ public class ApiRest extends AbstractVerticle{
 				}
 				routingContext.response().setStatusCode(200).putHeader("content-type", "application/json")
 				.end(result.encodePrettily());
+				System.out.println(result.encodePrettily());
 			}else {
 				routingContext.response().setStatusCode(401).putHeader("content-type", "application/json")
 				.end((JsonObject.mapFrom(res.cause()).encodePrettily()));
@@ -323,10 +324,12 @@ public class ApiRest extends AbstractVerticle{
 				handler -> {
 					if (handler.succeeded()) {
 						routingContext.response().setStatusCode(200).putHeader("content-type", "application/json")
-								.end(JsonObject.mapFrom(usuario).encodePrettily());
+						.end("Usuario actualizado");
+						System.out.println(JsonObject.mapFrom(usuario).encodePrettily()+"Usuario actualizado");
 					} else {
 						routingContext.response().setStatusCode(401).putHeader("content-type", "application/json")
-								.end((JsonObject.mapFrom(handler.cause()).encodePrettily()));
+						.end((JsonObject.mapFrom(handler.cause()).encodePrettily()));
+						System.out.println("Error"+handler.cause().getLocalizedMessage());
 					}
 				});
 	}
@@ -338,10 +341,12 @@ public class ApiRest extends AbstractVerticle{
 				handler -> {
 					if (handler.succeeded()) {
 						routingContext.response().setStatusCode(200).putHeader("content-type", "application/json")
-								.end(JsonObject.mapFrom(dispositivo).encodePrettily());
+						.end(JsonObject.mapFrom(dispositivo).encodePrettily());
+						System.out.println(JsonObject.mapFrom(dispositivo).encodePrettily());
 					} else {
 						routingContext.response().setStatusCode(401).putHeader("content-type", "application/json")
-								.end((JsonObject.mapFrom(handler.cause()).encodePrettily()));
+						.end((JsonObject.mapFrom(handler.cause()).encodePrettily()));
+						System.out.println("Error"+handler.cause().getLocalizedMessage());
 					}
 				});
 	}
@@ -350,9 +355,11 @@ public class ApiRest extends AbstractVerticle{
 		mySqlClient.query("DELETE FROM covidbus.usuario WHERE idusuario =  " + idusuario,handler -> {		
 			if (handler.succeeded()) {						
 				routingContext.response().setStatusCode(200).putHeader("content-type", "application/json").end("Usuario borrado correctamente");
+				System.out.println("Usuario borrado correctamente");
 			}else {
-					routingContext.response().setStatusCode(401).putHeader("content-type", "application/json")
-					.end((JsonObject.mapFrom(handler.cause()).encodePrettily()));
+				routingContext.response().setStatusCode(401).putHeader("content-type", "application/json")
+				.end((JsonObject.mapFrom(handler.cause()).encodePrettily()));
+				System.out.println("Error"+handler.cause().getLocalizedMessage());
 			}
 		});
 	}
@@ -361,9 +368,11 @@ public class ApiRest extends AbstractVerticle{
 		mySqlClient.query("DELETE FROM covidbus.dispositivo WHERE iddispositivo =  " + iddispositivo,handler -> {		
 			if (handler.succeeded()) {						
 				routingContext.response().setStatusCode(200).putHeader("content-type", "application/json").end("Dispositivo borrado correctamente");
+				System.out.println("Dispositivo borrado correctamente");
 			}else {
-					routingContext.response().setStatusCode(401).putHeader("content-type", "application/json")
-					.end((JsonObject.mapFrom(handler.cause()).encodePrettily()));
+				routingContext.response().setStatusCode(401).putHeader("content-type", "application/json")
+				.end((JsonObject.mapFrom(handler.cause()).encodePrettily()));
+				System.out.println("Error"+handler.cause().getLocalizedMessage());
 			}
 		});
 	}
@@ -374,10 +383,12 @@ public class ApiRest extends AbstractVerticle{
 						usuario.getContraseña(), usuario.getCiudad()),handler -> {	
 				if (handler.succeeded()) {
 					routingContext.response().setStatusCode(200).putHeader("content-type", "application/json")
-							.end(JsonObject.mapFrom(handler.cause()).encodePrettily());
-					}else {
-						routingContext.response().setStatusCode(401).putHeader("content-type", "application/json")
-						.end((JsonObject.mapFrom(handler.cause()).encodePrettily()));
+					.end("Usuario registrado");
+					System.out.println(JsonObject.mapFrom(usuario).encodePrettily()+"\n Usuario registrado");
+				}else {
+					routingContext.response().setStatusCode(401).putHeader("content-type", "application/json")
+					.end((JsonObject.mapFrom(handler.cause()).encodePrettily()));
+					System.out.println("Error"+handler.cause().getLocalizedMessage());
 				}
 			});
 		
@@ -389,10 +400,12 @@ public class ApiRest extends AbstractVerticle{
 						dispositivo.getIdusuario()),handler -> {	
 				if (handler.succeeded()) {
 					routingContext.response().setStatusCode(200).putHeader("content-type", "application/json")
-							.end(JsonObject.mapFrom(dispositivo).encodePrettily());
-					}else {
-						routingContext.response().setStatusCode(401).putHeader("content-type", "application/json")
-						.end((JsonObject.mapFrom(handler.cause()).encodePrettily()));
+					.end(JsonObject.mapFrom(dispositivo).encodePrettily());
+					System.out.println(JsonObject.mapFrom(dispositivo).encodePrettily());
+				}else {
+					routingContext.response().setStatusCode(401).putHeader("content-type", "application/json")
+					.end((JsonObject.mapFrom(handler.cause()).encodePrettily()));
+					System.out.println(JsonObject.mapFrom(handler.cause()).encodePrettily());
 				}
 			});
 		
@@ -404,10 +417,12 @@ public class ApiRest extends AbstractVerticle{
 						tipo_gps.getY(), tipo_gps.getIdsensor()),handler -> {	
 				if (handler.succeeded()) {
 					routingContext.response().setStatusCode(200).putHeader("content-type", "application/json")
-							.end(JsonObject.mapFrom(tipo_gps).encodePrettily());
-					}else {
-						routingContext.response().setStatusCode(401).putHeader("content-type", "application/json")
-						.end((JsonObject.mapFrom(handler.cause()).encodePrettily()));
+					.end(JsonObject.mapFrom(tipo_gps).encodePrettily());
+					System.out.println(JsonObject.mapFrom(tipo_gps).encodePrettily());
+				}else {
+					routingContext.response().setStatusCode(401).putHeader("content-type", "application/json")
+					.end((JsonObject.mapFrom(handler.cause()).encodePrettily()));
+					System.out.println(JsonObject.mapFrom(handler.cause()).encodePrettily());
 				}
 			});
 		
@@ -419,10 +434,12 @@ public class ApiRest extends AbstractVerticle{
 						tipo_sensor.getIdsensor()),handler -> {	
 				if (handler.succeeded()) {
 					routingContext.response().setStatusCode(200).putHeader("content-type", "application/json")
-							.end(JsonObject.mapFrom(tipo_sensor).encodePrettily());
-					}else {
-						routingContext.response().setStatusCode(401).putHeader("content-type", "application/json")
-						.end((JsonObject.mapFrom(handler.cause()).encodePrettily()));
+						.end(JsonObject.mapFrom(tipo_sensor).encodePrettily());
+					System.out.println(JsonObject.mapFrom(tipo_sensor).encodePrettily());
+				}else {
+					routingContext.response().setStatusCode(401).putHeader("content-type", "application/json")
+					.end((JsonObject.mapFrom(handler.cause()).encodePrettily()));
+					System.out.println(JsonObject.mapFrom(handler.cause()).encodePrettily());
 				}
 			});
 		
@@ -434,10 +451,12 @@ public class ApiRest extends AbstractVerticle{
 						tipo_actuador.getModo(),tipo_actuador.getIdactuador()),handler -> {	
 				if (handler.succeeded()) {
 					routingContext.response().setStatusCode(200).putHeader("content-type", "application/json")
-							.end(JsonObject.mapFrom(tipo_actuador).encodePrettily());
-					}else {
-						routingContext.response().setStatusCode(401).putHeader("content-type", "application/json")
-						.end((JsonObject.mapFrom(handler.cause()).encodePrettily()));
+					.end(JsonObject.mapFrom(tipo_actuador).encodePrettily());
+					System.out.println(JsonObject.mapFrom(tipo_actuador).encodePrettily());
+				}else {
+					routingContext.response().setStatusCode(401).putHeader("content-type", "application/json")
+					.end((JsonObject.mapFrom(handler.cause()).encodePrettily()));
+					System.out.println(JsonObject.mapFrom(handler.cause()).encodePrettily());
 				}
 			});
 		
