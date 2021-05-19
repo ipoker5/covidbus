@@ -5,16 +5,23 @@ import clases.Sensor_Actuador;
 import clases.Tipo_actuador;
 import clases.Tipo_gps;
 import clases.Tipo_sensor;
+
+import com.google.gson.Gson;
+
 import clases.Dispositivo;
 import clases.Usuario;
+import io.netty.handler.codec.mqtt.MqttQoS;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Promise;
+import io.vertx.core.buffer.Buffer;
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.handler.BodyHandler;
+import io.vertx.mqtt.MqttClient;
+import io.vertx.mqtt.MqttClientOptions;
 import io.vertx.mysqlclient.MySQLConnectOptions;
 import io.vertx.mysqlclient.MySQLPool;
 import io.vertx.sqlclient.PoolOptions;
@@ -26,6 +33,8 @@ public class ApiRest extends AbstractVerticle{
 	
 	//Sirve despues para hacer conexiones get,put..
 	private MySQLPool mySqlClient;
+	Gson gson;
+	private MqttClient mqtt_client;
 	@Override
 	public void start(Promise<Void> startPromise) {
 		
@@ -72,7 +81,35 @@ public class ApiRest extends AbstractVerticle{
 		router.get("/api/tipoActuador/:idtipo_actuador").handler(this::getTipoActuador);
 		router.post("/api/PostActuador/").handler(this::postTipo_Actuador);
 		
-		
+		mqtt_client = MqttClient.create(getVertx(), new MqttClientOptions().setAutoKeepAlive(true).setUsername("admin").setPassword("admin"));
+		mqtt_client.connect(1883, "localhost",connectionn -> {
+			if(connectionn.succeeded()) {
+				System.out.println("Nombre del cliente: " + connectionn.result().code().name());
+				
+				//subscripción
+				mqtt_client.subscribe("topic_1", MqttQoS.AT_LEAST_ONCE.value(), sub -> {
+					if(sub.succeeded()) {
+						System.out.println("Subscripción realizada correctamente");
+					}else {
+						System.out.println("Fallo en la subscripción");
+					}
+				});
+				mqtt_client.publishHandler(message -> {
+					System.out.println("Mensaje publicado en el topic: " + message.topicName());
+					System.out.println("Mensaje: " + message.payload().toString());
+					if(message.topicName().equals("topic_2")) {
+						//Tipo_sensor sensor = gson.fromJson(message.payload().toString(), Tipo_sensor.class);
+						//System.out.println(sensor.toString());
+						System.out.println("Aqui deberia de haber un sensor bro");
+					}
+				});
+				
+				//publicación
+				mqtt_client.publish("topic_2", Buffer.buffer("Hola"), MqttQoS.AT_LEAST_ONCE, false, false);
+			}else {
+				System.out.println("Error en la conexión con el broker");
+			}
+		});
 		getAll();
 		
 		
