@@ -44,6 +44,34 @@ INSERT INTO `actuador` VALUES (1,'led','ledbus1',1),(2,'sonido','sonidobus1',1),
 UNLOCK TABLES;
 
 --
+-- Table structure for table `data_sensor`
+--
+
+DROP TABLE IF EXISTS `data_sensor`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!50503 SET character_set_client = utf8mb4 */;
+CREATE TABLE `data_sensor` (
+  `timestamp` float NOT NULL,
+  `valor1` float NOT NULL,
+  `valor2` float NOT NULL,
+  `idsensor` int NOT NULL,
+  PRIMARY KEY (`timestamp`),
+  KEY `idsensor_idx` (`idsensor`),
+  CONSTRAINT `iddsensor` FOREIGN KEY (`idsensor`) REFERENCES `info_sensor` (`idsensor`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `data_sensor`
+--
+
+LOCK TABLES `data_sensor` WRITE;
+/*!40000 ALTER TABLE `data_sensor` DISABLE KEYS */;
+INSERT INTO `data_sensor` VALUES (2.3,0,0,1),(3,61,61,1);
+/*!40000 ALTER TABLE `data_sensor` ENABLE KEYS */;
+UNLOCK TABLES;
+
+--
 -- Table structure for table `dispositivo`
 --
 
@@ -57,7 +85,7 @@ CREATE TABLE `dispositivo` (
   PRIMARY KEY (`iddispositivo`),
   KEY `usuario_idx` (`idusuario`),
   CONSTRAINT `usuario` FOREIGN KEY (`idusuario`) REFERENCES `usuario` (`idusuario`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB AUTO_INCREMENT=25 DEFAULT CHARSET=utf8mb3;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -71,31 +99,33 @@ INSERT INTO `dispositivo` VALUES (1,'bus1_put',1),(2,'bus2',2),(3,'bus2_put2',4)
 UNLOCK TABLES;
 
 --
--- Table structure for table `sensor`
+-- Table structure for table `info_sensor`
 --
 
-DROP TABLE IF EXISTS `sensor`;
+DROP TABLE IF EXISTS `info_sensor`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `sensor` (
+CREATE TABLE `info_sensor` (
   `idsensor` int NOT NULL AUTO_INCREMENT,
   `tipo` varchar(45) NOT NULL,
   `nombre` varchar(45) NOT NULL,
+  `last_value1` float NOT NULL,
+  `last_value2` float NOT NULL,
   `iddispositivo` int NOT NULL,
   PRIMARY KEY (`idsensor`),
   KEY `dispositivo_idx` (`iddispositivo`),
   CONSTRAINT `iddispositivo` FOREIGN KEY (`iddispositivo`) REFERENCES `dispositivo` (`iddispositivo`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb3;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
--- Dumping data for table `sensor`
+-- Dumping data for table `info_sensor`
 --
 
-LOCK TABLES `sensor` WRITE;
-/*!40000 ALTER TABLE `sensor` DISABLE KEYS */;
-INSERT INTO `sensor` VALUES (1,'temp','temperatura',1),(2,'hum','humedad',1),(3,'lugar','gps',1),(4,'temp','temperatura',2),(5,'hum','humedad',2),(6,'lugar','gps',2);
-/*!40000 ALTER TABLE `sensor` ENABLE KEYS */;
+LOCK TABLES `info_sensor` WRITE;
+/*!40000 ALTER TABLE `info_sensor` DISABLE KEYS */;
+INSERT INTO `info_sensor` VALUES (1,'temp_put','temperatura_put',1.2,1.5,1),(2,'hum','humedad',0,0,1),(3,'lugar','gps',0,0,1),(4,'temp','temperatura',0,0,2),(5,'hum','humedad',0,0,2),(6,'lugar','gps',0,0,2),(7,'C02','C02',61,61,1);
+/*!40000 ALTER TABLE `info_sensor` ENABLE KEYS */;
 UNLOCK TABLES;
 
 --
@@ -122,7 +152,7 @@ CREATE TABLE `tipo_actuador` (
 
 LOCK TABLES `tipo_actuador` WRITE;
 /*!40000 ALTER TABLE `tipo_actuador` DISABLE KEYS */;
-INSERT INTO `tipo_actuador` VALUES (1,35,1,1),(2,30.2,0,2),(3,70.5,1,3),(4,40.8,1,4);
+INSERT INTO `tipo_actuador` VALUES (1,35,1,1),(2,30.2,0,2),(3,47.8,1,3);
 /*!40000 ALTER TABLE `tipo_actuador` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -140,8 +170,8 @@ CREATE TABLE `tipo_gps` (
   `idsensor` int NOT NULL,
   PRIMARY KEY (`idtipo_gps`),
   KEY `idsensor_idx` (`idsensor`),
-  CONSTRAINT `idsensor` FOREIGN KEY (`idsensor`) REFERENCES `sensor` (`idsensor`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb3;
+  CONSTRAINT `idsensor` FOREIGN KEY (`idsensor`) REFERENCES `info_sensor` (`idsensor`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=5 DEFAULT CHARSET=utf8mb3;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -152,33 +182,6 @@ LOCK TABLES `tipo_gps` WRITE;
 /*!40000 ALTER TABLE `tipo_gps` DISABLE KEYS */;
 INSERT INTO `tipo_gps` VALUES (1,5,7,3),(2,25,20,6);
 /*!40000 ALTER TABLE `tipo_gps` ENABLE KEYS */;
-UNLOCK TABLES;
-
---
--- Table structure for table `tipo_sensor`
---
-
-DROP TABLE IF EXISTS `tipo_sensor`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `tipo_sensor` (
-  `idtipo_sensor` int NOT NULL AUTO_INCREMENT,
-  `valor` float NOT NULL,
-  `idsensor` int NOT NULL,
-  PRIMARY KEY (`idtipo_sensor`),
-  KEY `idsensor_idx` (`idsensor`),
-  CONSTRAINT `id_sensor` FOREIGN KEY (`idsensor`) REFERENCES `sensor` (`idsensor`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=23 DEFAULT CHARSET=utf8mb3;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
---
--- Dumping data for table `tipo_sensor`
---
-
-LOCK TABLES `tipo_sensor` WRITE;
-/*!40000 ALTER TABLE `tipo_sensor` DISABLE KEYS */;
-INSERT INTO `tipo_sensor` VALUES (1,28,1),(2,35.5,2);
-/*!40000 ALTER TABLE `tipo_sensor` ENABLE KEYS */;
 UNLOCK TABLES;
 
 --
@@ -194,7 +197,7 @@ CREATE TABLE `usuario` (
   `contraseña` varchar(45) NOT NULL,
   `ciudad` varchar(45) NOT NULL,
   PRIMARY KEY (`idusuario`)
-) ENGINE=InnoDB AUTO_INCREMENT=7 DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb3;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -203,7 +206,7 @@ CREATE TABLE `usuario` (
 
 LOCK TABLES `usuario` WRITE;
 /*!40000 ALTER TABLE `usuario` DISABLE KEYS */;
-INSERT INTO `usuario` VALUES (1,'ivan_put','ivan','sevilla'),(2,'javi','javi','utrera'),(4,'clara','clara','madrid'),(5,'german_post','germna','berlin');
+INSERT INTO `usuario` VALUES (1,'ivan_put','ivan','sevilla'),(2,'javi','javi','utrera'),(4,'clara','clara','madrid'),(7,'german_post','germna','berlin');
 /*!40000 ALTER TABLE `usuario` ENABLE KEYS */;
 UNLOCK TABLES;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
@@ -216,4 +219,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2021-05-04 11:41:11
+-- Dump completed on 2021-05-22  1:26:15

@@ -4,11 +4,12 @@ package vertx;
 import clases.Sensor_Actuador;
 import clases.Tipo_actuador;
 import clases.Tipo_gps;
-import clases.Tipo_sensor;
+import clases.DataSensor;
 
 import com.google.gson.Gson;
 
 import clases.Dispositivo;
+import clases.InfoSensor;
 import clases.Usuario;
 import io.netty.handler.codec.mqtt.MqttQoS;
 import io.vertx.core.AbstractVerticle;
@@ -71,18 +72,20 @@ public class ApiRest extends AbstractVerticle{
 		router.post("/api/PostDispositivo/").handler(this::postDispositivo);
 		
 		
-		router.get("/api/sensor/:idsensor").handler(this::getSensor);
-		router.get("/api/tipoSensor/:idtipo_sensor").handler(this::getTipoSensor);
+		router.get("/api/InfoSensor/:idsensor").handler(this::getInfoSensor);
+		router.get("/api/DataSensor/:timestamp").handler(this::getDataSensor);//este X
 		router.get("/api/tipoSensorGPS/:idtipo_gps").handler(this::getSensorGPS);
 		router.post("/api/PostGPS/").handler(this::postTipo_GPS);
-		router.post("/api/PostSensor/").handler(this::postTipo_Sensor);
+		router.post("/api/Post_Data_Sensor/").handler(this::postData_Sensor);
+		router.post("/api/Post_Info_Sensor/").handler(this::postInfo_Sensor);
+		router.put("/api/PutInfoSensor/:idsensor").handler(this::PutInfoSensor);
 		
 		router.get("/api/actuador/:idactuador").handler(this::getActuador);
 		router.get("/api/tipoActuador/:idtipo_actuador").handler(this::getTipoActuador);
 		router.post("/api/PostActuador/").handler(this::postTipo_Actuador);
 		
-		mqtt_client = MqttClient.create(getVertx(), new MqttClientOptions().setAutoKeepAlive(true).setUsername("admin").setPassword("admin"));
-		mqtt_client.connect(1883, "localhost",connectionn -> {
+		mqtt_client = MqttClient.create(getVertx(), new MqttClientOptions().setAutoKeepAlive(true).setUsername("mqtt").setPassword("mqtt"));
+		mqtt_client.connect(1885, "localhost",connectionn -> {
 			if(connectionn.succeeded()) {
 				System.out.println("Nombre del cliente: " + connectionn.result().code().name());
 				
@@ -229,19 +232,21 @@ public class ApiRest extends AbstractVerticle{
 			}
 			});
 	}
-	private void getSensor(RoutingContext routingContext) {
+	private void getInfoSensor(RoutingContext routingContext) {
 		// routing da un contenido en formato string por lo que hay que parsearlo
 		Integer idsensor=Integer.parseInt(routingContext.request().getParam("idsensor"));
 		
-		mySqlClient.query("SELECT * FROM covidbus.sensor WHERE idsensor = '" + idsensor + "'",res -> {
+		mySqlClient.query("SELECT * FROM covidbus.info_sensor WHERE idsensor = '" + idsensor + "'",res -> {
 			if (res.succeeded()) {	
 				RowSet<Row> resultSet = res.result();
 				JsonArray result = new JsonArray();
 				
 				for (Row elem : resultSet) {
-					result.add(JsonObject.mapFrom(new Sensor_Actuador(elem.getInteger("idsensor"),
+					result.add(JsonObject.mapFrom(new InfoSensor(elem.getInteger("idsensor"),
 							elem.getString("tipo"),
 							elem.getString("nombre"),
+							elem.getFloat("last_value1"),
+							elem.getFloat("last_value2"),
 							elem.getInteger("iddispositivo"))));
 				}
 				routingContext.response().setStatusCode(200).putHeader("content-type", "application/json")
@@ -304,18 +309,19 @@ public class ApiRest extends AbstractVerticle{
 			}
 			});
 	}
-	private void getTipoSensor(RoutingContext routingContext) {
+	private void getDataSensor(RoutingContext routingContext) {
 		// routing da un contenido en formato string por lo que hay que parsearlo
-		Integer idtipo_sensor=Integer.parseInt(routingContext.request().getParam("idtipo_sensor"));
+		Float timestamp=Float.parseFloat(routingContext.request().getParam("timestamp"));
 		
-		mySqlClient.query("SELECT * FROM covidbus.tipo_sensor WHERE idtipo_sensor = '" + idtipo_sensor + "'",res -> {
+		mySqlClient.query("SELECT * FROM covidbus.data_sensor WHERE timestamp = '" + timestamp + "'",res -> {
 			if (res.succeeded()) {	
 				RowSet<Row> resultSet = res.result();
 				JsonArray result = new JsonArray();
 				
 				for (Row elem : resultSet) {
-					result.add(JsonObject.mapFrom(new Tipo_sensor(elem.getInteger("idtipo_sensor"),
-							elem.getFloat("valor"),
+					result.add(JsonObject.mapFrom(new DataSensor(elem.getFloat("timestamp"),
+							elem.getFloat("valor1"),
+							elem.getFloat("valor2"),
 							elem.getInteger("idsensor"))));
 				}
 				routingContext.response().setStatusCode(200).putHeader("content-type", "application/json")
@@ -380,6 +386,22 @@ public class ApiRest extends AbstractVerticle{
 						routingContext.response().setStatusCode(200).putHeader("content-type", "application/json")
 						.end(JsonObject.mapFrom(dispositivo).encodePrettily());
 						System.out.println(JsonObject.mapFrom(dispositivo).encodePrettily());
+					} else {
+						routingContext.response().setStatusCode(401).putHeader("content-type", "application/json")
+						.end((JsonObject.mapFrom(handler.cause()).encodePrettily()));
+						System.out.println("Error"+handler.cause().getLocalizedMessage());
+					}
+				});
+	}
+	private void PutInfoSensor(RoutingContext routingContext) { //Actualiza un usuario
+		InfoSensor info_sensor = Json.decodeValue(routingContext.getBodyAsString(), InfoSensor.class);
+		mySqlClient.preparedQuery("UPDATE info_sensor SET tipo = ?, nombre = ?, last_value1 = ?, last_value2 = ?, iddispositivo = ? WHERE idsensor = ?",
+				Tuple.of(info_sensor.getTipo(), info_sensor.getNombre(),info_sensor.getLast_value1(),info_sensor.getLast_value2(),
+						info_sensor.getIddispositivo(), routingContext.request().getParam("idsensor")),handler -> {	
+					if (handler.succeeded()) {
+						routingContext.response().setStatusCode(200).putHeader("content-type", "application/json")
+						.end("InfoSensor actualizado");
+						System.out.println(JsonObject.mapFrom(info_sensor).encodePrettily()+"Sensor actualizado");
 					} else {
 						routingContext.response().setStatusCode(401).putHeader("content-type", "application/json")
 						.end((JsonObject.mapFrom(handler.cause()).encodePrettily()));
@@ -464,22 +486,37 @@ public class ApiRest extends AbstractVerticle{
 			});
 		
 	}
-	private void postTipo_Sensor(RoutingContext routingContext){
-		Tipo_sensor tipo_sensor = Json.decodeValue(routingContext.getBodyAsString(), Tipo_sensor.class);	
-		mySqlClient.preparedQuery("INSERT INTO tipo_sensor (idtipo_sensor, valor, idsensor) VALUES (?,?,?)",
-				Tuple.of(tipo_sensor.getIdtipo_sensor(), tipo_sensor.getValor(),
-						tipo_sensor.getIdsensor()),handler -> {	
+	private void postInfo_Sensor(RoutingContext routingContext){
+		InfoSensor Infosensor = Json.decodeValue(routingContext.getBodyAsString(), InfoSensor.class);	
+		mySqlClient.preparedQuery("INSERT INTO info_sensor (idsensor, tipo, nombre, last_value1, last_value2, iddispositivo) VALUES (?,?,?,?,?,?)",
+				Tuple.of(Infosensor.getIdsensor(), Infosensor.getTipo(),Infosensor.getNombre(),Infosensor.getLast_value1(),Infosensor.getLast_value2(),
+						Infosensor.getIddispositivo()),handler -> {	
 				if (handler.succeeded()) {
 					routingContext.response().setStatusCode(200).putHeader("content-type", "application/json")
-						.end(JsonObject.mapFrom(tipo_sensor).encodePrettily());
-					System.out.println(JsonObject.mapFrom(tipo_sensor).encodePrettily());
+						.end(JsonObject.mapFrom(Infosensor).encodePrettily());
+					System.out.println(JsonObject.mapFrom(Infosensor).encodePrettily());
 				}else {
 					routingContext.response().setStatusCode(401).putHeader("content-type", "application/json")
 					.end((JsonObject.mapFrom(handler.cause()).encodePrettily()));
 					System.out.println(JsonObject.mapFrom(handler.cause()).encodePrettily());
 				}
 			});
-		
+	}
+	private void postData_Sensor(RoutingContext routingContext){
+		DataSensor Datasensor = Json.decodeValue(routingContext.getBodyAsString(), DataSensor.class);	
+		mySqlClient.preparedQuery("INSERT INTO data_sensor (timestamp, valor1, valor2, idsensor) VALUES (?,?,?,?)",
+				Tuple.of(Datasensor.getTimestamp(), Datasensor.getValor1(),Datasensor.getValor2(),
+						Datasensor.getIdsensor()),handler -> {	
+				if (handler.succeeded()) {
+					routingContext.response().setStatusCode(200).putHeader("content-type", "application/json")
+						.end(JsonObject.mapFrom(Datasensor).encodePrettily());
+					System.out.println(JsonObject.mapFrom(Datasensor).encodePrettily());
+				}else {
+					routingContext.response().setStatusCode(401).putHeader("content-type", "application/json")
+					.end((JsonObject.mapFrom(handler.cause()).encodePrettily()));
+					System.out.println(JsonObject.mapFrom(handler.cause()).encodePrettily());
+				}
+			});
 	}
 	private void postTipo_Actuador(RoutingContext routingContext){
 		Tipo_actuador tipo_actuador = Json.decodeValue(routingContext.getBodyAsString(), Tipo_actuador.class);	
