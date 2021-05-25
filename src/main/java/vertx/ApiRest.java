@@ -83,9 +83,9 @@ public class ApiRest extends AbstractVerticle{
 		router.get("/api/actuador/:idactuador").handler(this::getActuador);
 		router.get("/api/tipoActuador/:idtipo_actuador").handler(this::getTipoActuador);
 		router.post("/api/PostActuador/").handler(this::postTipo_Actuador);
-		
-		mqtt_client = MqttClient.create(getVertx(), new MqttClientOptions().setAutoKeepAlive(true).setUsername("mqtt").setPassword("mqtt"));
-		mqtt_client.connect(1885, "localhost",connectionn -> {
+		/*
+		mqtt_client = MqttClient.create(getVertx(), new MqttClientOptions().setAutoKeepAlive(true).setUsername("admin").setPassword("admin"));
+		mqtt_client.connect(1883, "localhost",connectionn -> {
 			if(connectionn.succeeded()) {
 				System.out.println("Nombre del cliente: " + connectionn.result().code().name());
 				
@@ -108,11 +108,11 @@ public class ApiRest extends AbstractVerticle{
 				});
 				
 				//publicación
-				mqtt_client.publish("topic_2", Buffer.buffer("Hola"), MqttQoS.AT_LEAST_ONCE, false, false);
+				mqtt_client.publish("parpadea_led", Buffer.buffer("1"), MqttQoS.AT_LEAST_ONCE, false, false);
 			}else {
 				System.out.println("Error en la conexión con el broker");
 			}
-		});
+		});*/
 		getAll();
 		
 		
@@ -319,7 +319,7 @@ public class ApiRest extends AbstractVerticle{
 				JsonArray result = new JsonArray();
 				
 				for (Row elem : resultSet) {
-					result.add(JsonObject.mapFrom(new DataSensor(elem.getFloat("timestamp"),
+					result.add(JsonObject.mapFrom(new DataSensor(elem.getString("timestamp"),
 							elem.getFloat("valor1"),
 							elem.getFloat("valor2"),
 							elem.getInteger("idsensor"))));

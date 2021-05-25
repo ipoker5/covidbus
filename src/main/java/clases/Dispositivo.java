@@ -2,6 +2,7 @@ package clases;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+
 public class Dispositivo {
 	
 	Integer iddispositivo;

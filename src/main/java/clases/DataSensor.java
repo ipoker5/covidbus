@@ -3,12 +3,12 @@ package clases;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 public class DataSensor {
-	Float timestamp;
+	String timestamp;
 	Float valor1;
 	Float valor2;
 	Integer idsensor;
 	
-	public DataSensor(@JsonProperty("timestamp")Float timestamp, @JsonProperty("valor1")Float valor1,@JsonProperty("valor2")Float valor2,@JsonProperty("idsensor")Integer idsensor) {
+	public DataSensor(@JsonProperty("timestamp")String timestamp, @JsonProperty("valor1")Float valor1,@JsonProperty("valor2")Float valor2,@JsonProperty("idsensor")Integer idsensor) {
 		super();
 		this.timestamp = timestamp;
 		this.valor1 = valor1;
@@ -16,11 +16,11 @@ public class DataSensor {
 		this.idsensor = idsensor;
 	}
 
-	public Float getTimestamp() {
+	public String getTimestamp() {
 		return timestamp;
 	}
 
-	public void setTimestamp(Float timestamp) {
+	public void setTimestamp(String timestamp) {
 		this.timestamp = timestamp;
 	}
 
@@ -90,6 +90,7 @@ public class DataSensor {
 			return false;
 		return true;
 	}
+
 	
 	
 
