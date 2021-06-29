@@ -6,6 +6,9 @@ import clases.Tipo_actuador;
 import clases.Tipo_gps;
 import clases.DataSensor;
 
+import java.time.LocalDate;
+import java.time.LocalTime;
+
 import com.google.gson.Gson;
 
 import clases.Dispositivo;
@@ -32,22 +35,23 @@ import io.vertx.sqlclient.Tuple;
 
 public class ApiRest extends AbstractVerticle{
 	
-	//Sirve despues para hacer conexiones get,put..
-	private MySQLPool mySqlClient;
-	Gson gson;
-	private MqttClient mqtt_client;
-	@Override
-	public void start(Promise<Void> startPromise) {
-		
-		
+		//Sirve despues para hacer conexiones get,put..
+		private MySQLPool mySqlClient;
+		Gson gson;
+		private MqttClient mqtt_client;
+		@Override
+		public void start(Promise<Void> startPromise) {
+			
+			
 		MySQLConnectOptions mySQLConnectOptions = new MySQLConnectOptions().setPort(3306).setHost("localhost")
 				.setDatabase("covidbus").setUser("root").setPassword("ivan1998");
-		PoolOptions poolOptions = new PoolOptions().setMaxSize(5);// numero maximo de conexiones
+PoolOptions poolOptions = new PoolOptions().setMaxSize(5);// numero maximo de conexiones
 		
 		mySqlClient = MySQLPool.pool(vertx, mySQLConnectOptions, poolOptions);
 		
 		Router router = Router.router(vertx); // Permite canalizar las peticiones
 		router.route().handler(BodyHandler.create());
+		
 		//Creacion de un servidor http, recibe por parametro el puerto, el resultado
 		vertx.createHttpServer().requestHandler(router::handle).listen(8080, result -> {
 			if (result.succeeded()) {
@@ -56,6 +60,7 @@ public class ApiRest extends AbstractVerticle{
 				startPromise.fail(result.cause());
 			}
 		});
+		
 		// Definimos la rutas que se le pasan al servido http
 		// ":idusuario" es un parametro que se le pasa a la funcion que se le llama en handler
 		// no tener dos metodos put,get... con el mismo recurso por que el router no sabria por donde tirar
@@ -76,6 +81,7 @@ public class ApiRest extends AbstractVerticle{
 		router.get("/api/DataSensor/:timestamp").handler(this::getDataSensor);//este X
 		router.get("/api/tipoSensorGPS/:idtipo_gps").handler(this::getSensorGPS);
 		router.post("/api/PostGPS/").handler(this::postTipo_GPS);
+		router.put("/api/PutSensorGPS/:idtipo_gps").handler(this::Put_SensorGPS);
 		router.post("/api/Post_Data_Sensor/").handler(this::postData_Sensor);
 		router.post("/api/Post_Info_Sensor/").handler(this::postInfo_Sensor);
 		router.put("/api/PutInfoSensor/:idsensor").handler(this::PutInfoSensor);
@@ -83,7 +89,7 @@ public class ApiRest extends AbstractVerticle{
 		router.get("/api/actuador/:idactuador").handler(this::getActuador);
 		router.get("/api/tipoActuador/:idtipo_actuador").handler(this::getTipoActuador);
 		router.post("/api/PostActuador/").handler(this::postTipo_Actuador);
-		/*
+		
 		mqtt_client = MqttClient.create(getVertx(), new MqttClientOptions().setAutoKeepAlive(true).setUsername("admin").setPassword("admin"));
 		mqtt_client.connect(1883, "localhost",connectionn -> {
 			if(connectionn.succeeded()) {
@@ -108,14 +114,22 @@ public class ApiRest extends AbstractVerticle{
 				});
 				
 				//publicación
-				mqtt_client.publish("parpadea_led", Buffer.buffer("1"), MqttQoS.AT_LEAST_ONCE, false, false);
+				//mqtt_client.publish("control_puerta", Buffer.buffer("0"), MqttQoS.AT_LEAST_ONCE, false, false);
+				//mqtt_client.publish("control_puerta", Buffer.buffer("1"), MqttQoS.AT_LEAST_ONCE, false, false);
+
+				//mqtt_client.publish("control_ventana", Buffer.buffer("0"), MqttQoS.AT_LEAST_ONCE, false, false);
+				//mqtt_client.publish("control_ventana", Buffer.buffer("1"), MqttQoS.AT_LEAST_ONCE, false, false);
+
+				//mqtt_client.publish("control_sensores", Buffer.buffer("0"), MqttQoS.AT_LEAST_ONCE, false, false);
+				mqtt_client.publish("control_sensores", Buffer.buffer("1"), MqttQoS.AT_LEAST_ONCE, false, false);
+
+
 			}else {
 				System.out.println("Error en la conexión con el broker");
 			}
-		});*/
+		});
+		
 		getAll();
-		
-		
 		
 	}
 	private void getAll() {
@@ -359,6 +373,22 @@ public class ApiRest extends AbstractVerticle{
 			}
 			});
 	}
+	private void Put_SensorGPS(RoutingContext routingContext) { 
+		Tipo_gps tipo_gps = Json.decodeValue(routingContext.getBodyAsString(), Tipo_gps.class);
+		mySqlClient.preparedQuery("UPDATE tipo_gps SET idtipo_gps = ?, x = ?, y = ? , idsensor = ? WHERE idtipo_gps = ?",
+				Tuple.of(tipo_gps.getIdsensor(), tipo_gps.getX(),tipo_gps.getY(),tipo_gps.getIdsensor(),
+						routingContext.request().getParam("idtipo_gps")),handler -> {	
+					if (handler.succeeded()) {
+						routingContext.response().setStatusCode(200).putHeader("content-type", "application/json")
+						.end("Sensor gps actualizado");
+						System.out.println(JsonObject.mapFrom(tipo_gps).encodePrettily()+"Sensor actualizado");
+					} else {
+						routingContext.response().setStatusCode(401).putHeader("content-type", "application/json")
+						.end((JsonObject.mapFrom(handler.cause()).encodePrettily()));
+						System.out.println("Error"+handler.cause().getLocalizedMessage());
+					}
+				});
+	}
 	private void PutUsuario(RoutingContext routingContext) { //Actualiza un usuario
 		Usuario usuario = Json.decodeValue(routingContext.getBodyAsString(), Usuario.class);
 		mySqlClient.preparedQuery(
@@ -505,7 +535,7 @@ public class ApiRest extends AbstractVerticle{
 	private void postData_Sensor(RoutingContext routingContext){
 		DataSensor Datasensor = Json.decodeValue(routingContext.getBodyAsString(), DataSensor.class);	
 		mySqlClient.preparedQuery("INSERT INTO data_sensor (timestamp, valor1, valor2, idsensor) VALUES (?,?,?,?)",
-				Tuple.of(Datasensor.getTimestamp(), Datasensor.getValor1(),Datasensor.getValor2(),
+				Tuple.of(LocalDate.now().toString().concat("_").concat(LocalTime.now().toString()), Datasensor.getValor1(),Datasensor.getValor2(),
 						Datasensor.getIdsensor()),handler -> {	
 				if (handler.succeeded()) {
 					routingContext.response().setStatusCode(200).putHeader("content-type", "application/json")
@@ -517,6 +547,7 @@ public class ApiRest extends AbstractVerticle{
 					System.out.println(JsonObject.mapFrom(handler.cause()).encodePrettily());
 				}
 			});
+		
 	}
 	private void postTipo_Actuador(RoutingContext routingContext){
 		Tipo_actuador tipo_actuador = Json.decodeValue(routingContext.getBodyAsString(), Tipo_actuador.class);	

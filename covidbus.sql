@@ -51,7 +51,7 @@ DROP TABLE IF EXISTS `data_sensor`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `data_sensor` (
-  `timestamp` varchar(50) NOT NULL,
+  `timestamp` float NOT NULL,
   `valor1` float NOT NULL,
   `valor2` float NOT NULL,
   `idsensor` int NOT NULL,
@@ -67,7 +67,7 @@ CREATE TABLE `data_sensor` (
 
 LOCK TABLES `data_sensor` WRITE;
 /*!40000 ALTER TABLE `data_sensor` DISABLE KEYS */;
-INSERT INTO `data_sensor` VALUES ('21:04:10_May 24 2021',25.6,37,77),('21:24:33_May 24 2021',23.9,41,77),('21:24:40_May 24 2021',61,61,77);
+INSERT INTO `data_sensor` VALUES (2.3,0,0,1),(3,61,61,1);
 /*!40000 ALTER TABLE `data_sensor` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -115,7 +115,7 @@ CREATE TABLE `info_sensor` (
   PRIMARY KEY (`idsensor`),
   KEY `dispositivo_idx` (`iddispositivo`),
   CONSTRAINT `iddispositivo` FOREIGN KEY (`iddispositivo`) REFERENCES `dispositivo` (`iddispositivo`) ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB AUTO_INCREMENT=334 DEFAULT CHARSET=utf8mb3;
+) ENGINE=InnoDB AUTO_INCREMENT=8 DEFAULT CHARSET=utf8mb3;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -124,7 +124,7 @@ CREATE TABLE `info_sensor` (
 
 LOCK TABLES `info_sensor` WRITE;
 /*!40000 ALTER TABLE `info_sensor` DISABLE KEYS */;
-INSERT INTO `info_sensor` VALUES (7,'C02','C02',61,61,1),(77,'hum_temp','DHT_11',0,0,1),(333,'hum_temp','DHT_11',23.7,43,1);
+INSERT INTO `info_sensor` VALUES (1,'temp_put','temperatura_put',1.2,1.5,1),(2,'hum','humedad',0,0,1),(3,'lugar','gps',0,0,1),(4,'temp','temperatura',0,0,2),(5,'hum','humedad',0,0,2),(6,'lugar','gps',0,0,2),(7,'C02','C02',61,61,1);
 /*!40000 ALTER TABLE `info_sensor` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -180,6 +180,7 @@ CREATE TABLE `tipo_gps` (
 
 LOCK TABLES `tipo_gps` WRITE;
 /*!40000 ALTER TABLE `tipo_gps` DISABLE KEYS */;
+INSERT INTO `tipo_gps` VALUES (1,5,7,3),(2,25,20,6);
 /*!40000 ALTER TABLE `tipo_gps` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -218,4 +219,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2021-05-25 22:16:29
+-- Dump completed on 2021-06-22  15:32:45

@@ -13,56 +13,65 @@
 
 #include <Ticker.h>
 
-#include <Time.h>
-#include "TimeLib.h"
-#include <DS1307RTC.h>
-#include <Wire.h>
+#include "AudioFileSourcePROGMEM.h"
+#include "AudioGeneratorWAV.h"
+#include "AudioOutputI2SNoDAC.h"
+#include "viola.h"
+
+#include <Servo.h>
+
 
 //////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////// VARIABLES GENERALES //////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////
 
+// variables para la página html
+String temperatura_;
+String humedad_;
+String nivel_gas_;
+
+/////////////////////////////// SENSOR GPS ///////////////////////////////////////
+static const int RXPin = 3, TXPin = 1; static const uint32_t GPSBaud = 9600;
+TinyGPSPlus gps;
+SoftwareSerial gpsSerial(RXPin, TXPin);
+char buffer[100];
+
+int idtipo_gps = 490; String tipo_gps = "gps"; String nombre_gps = "NEO-M6"; int idsensor_gps = 490; //variables para los metodos REST
+float latitude , longitude; String lat_str , lng_str;  // variables para la funcion printData()
+
 /////////////////////////////// SENSOR DHT_11 //////////////////////////////////// 
 #define DHTPIN D1
 #define DHTTYPE DHT11
 DHT dht(DHTPIN, DHTTYPE);
-int id_dht11 = 77; String tipo_dht11 = "humedad_temperatura"; String nombre_dth11 = "DHT_11"; int ii = 0;
 
-/////////////////////////////// SENSOR MQ-2 //////////////////////////////////// 
-int id_mq2 = 90; String tipo_mq2 = "humo"; String nombre_mq2 = "MQ_2"; int jj = 100;
+int id_dht11 = 12; String tipo_dht11 = "humedad_temperatura"; String nombre_dth11 = "DHT_11"; // variables para los metodos REST
 
-/////////////////////////////// SENSOR GPS ///////////////////////////////////////
-/*
-static const int RXPin = 4, TXPin = 3;
-static const uint32_t GPSBaud = 4800;
-TinyGPSPlus gps;
-SoftwareSerial ss(RXPin, TXPin);
-*/
+/////////////////////////////// SENSOR MQ-2 //////////////////////////////////////
+int id_mq2 = 2; String tipo_mq2 = "humo"; String nombre_mq2 = "MQ_2"; // variables para los metodos REST
 
-/////////////////////////////// LIBRERIA TIME //////////////////////////////////////////////
-/*const int timeZone = 1;    // Central European Time
-time_t getNtpTime();
-time_t prevDisplay = 0;
-*/
+/////////////////////////////// ACTUADOR ALTAVOZ /////////////////////////////////
+AudioGeneratorWAV *wav;
+AudioFileSourcePROGMEM *file;
+AudioOutputI2SNoDAC *out;
 
-/////////////////////////////// CONEXIONES //////////////////////////////////////////////
-//variables para la conexión ESP8266/wifi
-WiFiClient wifi_http;
-IPAddress serverAddress(192, 168, 0, 15); 
-int port_http = 8080;
+/////////////////////////////// ACTUADOR SERVO ///////////////////////////////////
+Servo myservo1;
+Servo myservo2;
 
+WiFiServer server(80);
+
+/////////////////////////////// CONEXIONES ///////////////////////////////////////
+IPAddress serverAddress(192, 168, 0, 16); // ip del pc
+
+//variables para conexión ESP8266/wifi
+WiFiClient wifi_http; int port_http = 8080;
 HttpClient client_http = HttpClient(wifi_http, serverAddress, port_http); //cliente HTTP
 
-//variables para MQTT
-WiFiClient wifi_mqtt;
-//IPAddress serverAddress(192, 168, 0, 15);
-int port_mqtt = 1883;
-const char usser_pass[7] = "admin";
-long last_msg = 0;
-char msg_mqtt[100];
-
+//variables para conexión MQTT
+WiFiClient wifi_mqtt; int port_mqtt = 1883; const char usser_pass[7] = "admin";
 PubSubClient client_mqtt(serverAddress,port_mqtt,wifi_mqtt); //cliente MQTT
 
+long last_msg = 0; char msg_mqtt[100];
 
 
 //______________________________________________________________________________//
@@ -73,74 +82,179 @@ PubSubClient client_mqtt(serverAddress,port_mqtt,wifi_mqtt); //cliente MQTT
 /////////////////////////////// FUNCIONES AUXILIARES /////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////
 
+//FUNCIÓN AUXILAR PARA EL SERVO
+
+void ventana_open(float temp, float hum, float gas){ // funcion para comprobar los niveles de temperatura, humedad y gas para activar el servo
+  if(temp > 24 || hum > 90 || gas > 60){
+    for (int angulo = 0; angulo <= 90; angulo++){  // se activa el servo a 90 grados (ventana)
+      myservo1.write(angulo);     
+      myservo2.write(angulo);              
+      delay(10); 
+    }
+  }
+temperatura_ = temp;
+humedad_ = hum;
+nivel_gas_ = gas;
+}
+
+
 /////////////////////////////// CONEXIÓN WIFI ////////////////////////////////////
 
 void setup_wifi(){
   WiFi.begin("vodafone7638", "N5ZXFUJGH5AK4Y");
-  Serial.println("Connecting Wifi ...");
+  Serial.print("\nConectando Wifi:");
   WiFi.mode(WIFI_STA);
   while (WiFi.status() != WL_CONNECTED)
   {
-    delay(500);
-    Serial.print(".");
+    delay(50);
   }
-  Serial.print("Connected, IP address: ");
-  Serial.println(WiFi.localIP());
+  Serial.print("  --> Wifi Conectado: IP address -> ");
+  Serial.print(WiFi.localIP());
 }
 
 
 /////////////////////////////// CONEXIÓN MQTT ////////////////////////////////////
 
 void callback(char* topic, byte* payload, unsigned int length) {
+  digitalWrite(LED_BUILTIN, LOW);
+
   Serial.print("\nMessage arrived [");
   Serial.print(topic);
   Serial.print("]\n ");
+
+  Serial.print("Message: ");
   for (int i = 0; i < length; i++) {
     Serial.print((char)payload[i]);
   }
-  Serial.println();
- 
-  if (strcmp(topic,"parpadea_led")){
-    if ((char)payload[0] == '1') {
-      digitalWrite(LED_BUILTIN, LOW);
-    } else {
-      digitalWrite(LED_BUILTIN, HIGH);  // Turn the LED off by making the voltage HIGH
+
+  String topicStr(topic);
+  if (topicStr.compareTo("control_puerta")==0){ //si el topic es control_puerta
+
+    if ((char)payload[0] == '1') { //1 para entrar al bus, se activa el servo a 180 grados (puerta)
+      //SERVOS ON
+      for (int angulo = 0; angulo <= 180; angulo++){  
+        myservo1.write(angulo);     
+        myservo2.write(180-angulo);              
+        delay(20); 
+      }
+      delay(3000); 
+      for (int angulo = 180; angulo>= 0; angulo--){  
+        myservo1.write(angulo);     
+        myservo2.write(180-angulo);              
+        delay(20); 
+      }    
+    }
+    if ((char)payload[0] == '0') { //0 para salir del bus, se activa el servo a 180 grados (puerta) y suena el altavoz para indicar al conductor que alguien se quiere bajar
+      //ALTAVOZ ON
+      audioLogger = &Serial;
+      file = new AudioFileSourcePROGMEM( viola, sizeof(viola) );
+      out = new AudioOutputI2SNoDAC();
+      wav = new AudioGeneratorWAV();
+      wav->begin(file, out);
+
+      //SERVOS ON
+      for (int angulo = 0; angulo <= 180; angulo++){  
+        myservo1.write(angulo);     
+        myservo2.write(180-angulo);              
+        delay(20); 
+      } 
+      delay(3000);   
+      for (int angulo = 180; angulo>= 0; angulo--){  
+        myservo1.write(angulo);     
+        myservo2.write(180-angulo);              
+        delay(20); 
+      }     
     }
   }
+
+  if (topicStr.compareTo("control_ventana")==0){ //si el topic es control_ventana
+
+    if ((char)payload[0] == '1') { //1 para servo D3, se activa el servo a 90 grados (ventana nº1)
+      //SERVO D3 ON
+      for (int angulo = 0; angulo <= 90; angulo++){  
+        myservo1.write(angulo);     
+        delay(10); 
+      }      
+    }
+    if ((char)payload[0] == '0') {  //0 para servo D0, se activa el servo a 90 grados (ventana nº2)
+      //SERVO D0 ON
+      for (int angulo = 0; angulo <= 90; angulo++){  
+        myservo2.write(angulo);     
+        delay(10); 
+      }    
+    }
+  }
+
+  if (topicStr.compareTo("control_sensores")==0){ //si el topic es control_sensores
+
+    if ((char)payload[0] == '1') { //1 para para sensor temperatura
+
+      float h = dht.readHumidity();
+      float t = dht.readTemperature(); // or dht.readTemperature(true) for Fahrenheit
+      if (isnan(h) || isnan(t)) {
+        Serial.println("Failed to read from DHT sensor!");
+      }
+      ventana_open(t,h,0);
+      Serial.print(("  Temperature: "));
+      Serial.print(t);
+      Serial.print((" grados ||"));
+      Serial.print(("  Humededity: "));
+      Serial.print(h);
+      Serial.print("% ");
+    }
+    if ((char)payload[0] == '0') {  //0 para sensor gas
+      Serial.print("\n\nMQ-2 test -> ");
+      float h = analogRead(A0);
+      if(isnan(h)){
+        Serial.println("ERROR NO DETECTA SENSOR MQ-2");
+      }
+      ventana_open(0,0,h/1023*100); 
+      Serial.print("Nivel de gas: ");
+      Serial.print(h/1023*100); 
+    }
+  }
+  digitalWrite(LED_BUILTIN, HIGH);  // Turn the LED off by making the voltage HIGH
 }
-void mqtt_reconnect() { //procesa los msjs que recibimos de MQTT
+
+void mqtt_reconnect() { 
+
+  String client_Id = "ESP8266Client";  //nombre de cliente
+  client_Id += String(random(0xffff), HEX); 
   while (!client_mqtt.connected()) {
-    Serial.println("Attempting MQTT connection...");
-    String client_Id = "ESP8266Client";  //nombre de cliente
-    client_Id += String(random(0xffff), HEX); 
+    Serial.print("\nEsperando a la Conexion MQTT...");
     if (client_mqtt.connect(client_Id.c_str(),usser_pass,usser_pass)) { 
-      Serial.print("\nMQTT connected:  ");
-      Serial.print("ID Cliente: ");
+      Serial.print("\nMQTT Conectado --> ");
+      Serial.print("ID Cliente --> ");
       Serial.print(client_Id);
-      Serial.println("");
 
       //client_mqtt.publish("casa/despacho/temperatura", "Enviando el primer mensaje");  //subscripcion o subscripciones
-      client_mqtt.subscribe("parpadea_led");
+      client_mqtt.subscribe("control_puerta");
+      client_mqtt.subscribe("control_ventana");
+      client_mqtt.subscribe("control_sensores");
+
+      
     } else {
-        Serial.print("Failed, rc=");
-        Serial.println(client_mqtt.state());
-        Serial.println("Try again in 5 seconds");
-        Serial.println("");
+        Serial.print("\nFailed, rc=");
+        Serial.print(client_mqtt.state());
+        Serial.println("Try again in 5 seconds: ");
         for(int i=5;i>0;i--){
             delay(1000);
             Serial.print(i);
-            Serial.print(" ");
+            Serial.print(", ");
       }
     }
   }
 }
+
 void mqtt_setup(){
+    Serial.print("\n\nMQTT Iniciado:");
     delay(10);
     pinMode(LED_BUILTIN,OUTPUT);
     client_mqtt.setServer(serverAddress,port_mqtt);
     client_mqtt.setCallback(callback);
     mqtt_reconnect();
 }
+
 void mqtt_loop() {
   if (!client_mqtt.connected()) {
     mqtt_reconnect();
@@ -156,163 +270,23 @@ void mqtt_loop() {
 }
 
 
-/////////////////////////////// TIMER ////////////////////////////////////
-/*
-void printDigits(int digits){
-  // utility for digital clock display: prints preceding colon and leading 0
-  Serial.print(":");
-  if (digits < 10)
-    Serial.print('0');
-  Serial.print(digits);
-}
-void print2digits(int number) {
-  if (number >= 0 && number < 10) {
-    Serial.write('0');
-  }
-  Serial.print(number);
-}
-void digitalClockDisplay(){
-  // digital clock display of the time
-  Serial.print(hour());
-  printDigits(minute());
-  printDigits(second());
-  Serial.print(" ");
-  Serial.print(day());
-  Serial.print(".");
-  Serial.print(month());
-  Serial.print(".");
-  Serial.print(year());
-  Serial.println();
-}
-void loop_timer()
-{
-  if (timeStatus() != timeNotSet) {
-    if (now() != prevDisplay) { //update the display only if time has changed
-      prevDisplay = now();
-      digitalClockDisplay();
-    }
-  }
-}
-*/
-
-
-/////////////////////////////// DESERIALIZE ////////////////////////////////////
-
-void deserialize_to_User(String response){
-  if(response != ""){
-      StaticJsonDocument<100> doc;
-      deserializeJson(doc,response);
-      DeserializationError error = deserializeJson(doc,response); //detecta si hay algun error en la deserializacion
-      if(error){
-            Serial.print("deserializeJson() --> failed");
-            Serial.println(error.f_str());
-      }else{
-        String idusuario = doc["idusuario"];
-        String nombre = doc["nombre"];
-        String contrasena = doc["contraseña"];
-        String ciudad = doc["ciudad"];
-        Serial.println(idusuario);
-        Serial.println(nombre);
-        Serial.println(contrasena);
-        Serial.println(ciudad);
-
-      }
-  }else{
-    Serial.print("cuerpo vacio");
-  }
-}
-void deserialize_to_Sensor(String response){
-  if(response != ""){
-
-      Serial.print("response: ");
-      Serial.print(response);
-
-      DynamicJsonDocument doc(200);
-      deserializeJson(doc,response);
-      Serial.print("doc: ");
-      Serial.println(doc.as<String>());
-      //Serial.printf(doc.getMember("valor"));
-      DeserializationError error = deserializeJson(doc,response); //detecta si hay algun error en la deserializacion
-      if(error){
-            Serial.print("deserializeJson() --> failed");
-            Serial.println(error.f_str());
-      }else{
-        int idtipo_sensor__ = doc["idtipo_sensor"].as<int>();
-        float valor__ = doc["valor"].as<float>();
-        int idsensor__ = doc["idsensor"].as<int>();
-        Serial.println("doc: -------------------------------");
-        Serial.println("idtipo_sensor: ");
-        Serial.println(idtipo_sensor__);
-        Serial.println("valor: ");
-        Serial.println(valor__);
-        Serial.println("idsensor: ");
-        Serial.println(idsensor__);
-        JsonArray array = doc.as<JsonArray>();
-        Serial.println("array: ------------------------------");
-        Serial.println(array);
-
-        int idtipo_sensor = array[0]["idtipo_sensor"].as<int>();
-        float valor = array[1]["valor"].as<float>();
-        int idsensor = array[2]["idsensor"].as<int>();
-
-        Serial.println("idtipo_sensor: ");
-        Serial.println(idtipo_sensor);
-        Serial.println("valor: ");
-        Serial.println(valor);
-        Serial.println("idsensor: ");
-        Serial.println(idsensor);
-      }
-  }else{
-    Serial.print("Cuerpo vacio");
-  }
-}
-void deserialize_to_GPS(String response){
-  if(response != ""){
-      StaticJsonDocument<100> doc;
-      DeserializationError error = deserializeJson(doc,response); //detecta si hay algun error en la deserializacion
-      if(error){
-            Serial.print("deserializeJson() --> failed");
-            Serial.println(error.f_str());
-      }else{
-        int id =  doc["id"];
-        float x = doc["x"];
-        float y = doc["y"];
-        long timestamp = doc["timestamp"];
-        Serial.println(id);
-        Serial.println(x);
-        Serial.println(y);
-        Serial.println(timestamp);
-      }
-  }else{
-    Serial.print("cuerpo vacio");
-  }
-}
-void deserialize_to_Actuador(String response){
-  if(response != ""){
-      StaticJsonDocument<100> doc;
-      DeserializationError error = deserializeJson(doc,response); //detecta si hay algun error en la deserializacion
-      if(error){
-            Serial.print("deserializeJson() --> failed");
-            Serial.println(error.f_str());
-      }else{
-        int idtipo_actuador = doc["idtipo_actuador"];
-        int valor = doc["valor"];
-        int modo = doc["modo"];
-        int idactuador = doc["idactuador"];
-        Serial.println(idtipo_actuador);
-        Serial.println(valor);
-        Serial.println(modo);
-        Serial.println(idactuador);
-      }
-  }else{
-    Serial.print("cuerpo vacio");
-  }
-}
-
-
 /////////////////////////////// SERIALIZE //////////////////////////////////////
 
+String serialize_GPS_Info(int idtipo_gps, float last_value_x, float last_value_y, int idsensor){
+
+  StaticJsonDocument<200> doc;
+  doc["idtipo_gps"] = idtipo_gps;
+  doc["x"] = last_value_x;
+  doc["y"] = last_value_y;
+  doc["idsensor"] = idsensor;
+
+  String output;
+  serializeJson(doc,output);
+  return output;
+}
+
 String serialize_Sensor_Info(int idsensor, String tipo, String nombre, float last_value1, float last_value2, int iddispositivo){
+
   StaticJsonDocument<200> doc;
   doc["idsensor"] = idsensor;
   doc["tipo"] = tipo;
@@ -323,11 +297,11 @@ String serialize_Sensor_Info(int idsensor, String tipo, String nombre, float las
 
   String output;
   serializeJson(doc,output);
-  //Serial.println(output);
-
   return output;
 }
+
 String serialize_Sensor_Data(String timestamp,float valor1, float valor2, int idsensor){
+
   DynamicJsonDocument doc(200);
   doc["timestamp"] = timestamp;
   doc["valor1"] = valor1;
@@ -336,241 +310,119 @@ String serialize_Sensor_Data(String timestamp,float valor1, float valor2, int id
 
   String output;
   serializeJson(doc,output);
-  //Serial.println(output);
   return output;
 }
 
 
-/////////////////////////////// MÉTODOS REST PRUEBAS ///////////////////////////////////
-
-void GET_tests(){
-  //client_http.get("/api/usuario/8");
-  client_http.get("/api/tipoSensor/1");
-
-  // read the status code and body of the response
-  int statusCode = client_http.responseStatusCode();
-  String response = client_http.responseBody();
-
-  Serial.println("GET con respuesta: ");
-  Serial.println(statusCode);
-  //Serial.println("Respuesta 1: ");
-  Serial.println(response);
-  //Serial.println("\n");
-  //Serial.println("Respuesta 2: ");
-  //deserialize_to_Sensor(response);
-}
-void POST_tests(){
-  //para usar con post un string en forma de json, con un parametro variable, hay que concatenar los strings
-  //forma manual:
-  int temperatura_actual = 0;
-  String postBody_t = " 'valor' : " + temperatura_actual;
-  postBody_t = "{ 'idtipo_sensor' : 1234," + postBody_t + ", 'idsensor' : 1}";
-  //------------------------------------------------------------------------------------------------------------------------------------
-  //crear un string en forma de json, sin variables
-  String postBody = "{'idusuario' : 7, 'nombre' : 'visualStudio', 'contraseña' : 'code', 'ciudad' : 'tusm'}";
-  String value = "{\"idusuario\" : 7,\"nombre\" : \"visualStudio\",\"contraseña\" : \"code\",\"ciudad\" : \"tusm\"}";
-  Serial.println(value);
-  String contentType = "application/json";
-
-  client_http.post("/api/PostUsuario/", contentType, value);
-  int statusCode = client_http.responseStatusCode();
-  String response = client_http.responseBody();
-  Serial.println(statusCode);
-  Serial.println(response);
-  //------------------------------------------------------------------------------------------------------------------------------------
-  //prueba1 --> te devuelve unicamente el codigo de estado de la peticion
-  //client_http.post("/sensors", postBody.c_str())); //introducimos el cuerpo
-
-  //prueba2 --> post con respuesta
-  //client_http.post("/sensors", postBody.c_str(), &response); //introducimos el cuerpo, y escribimos en response la respuesta
-
-  //prueba3 --> post con cabecera
-  //client_http.setHeader("Content-Type: application/json");
-  //client_http.post("/sensors", postBody.c_str()); //introducimos el cuerpo
-
-  //prueba4 --> post cabecera Y respuesta
-  //client_http.setHeader("Content-Type: application/json");
-  //client_http.post("/sensors", postBody.c_str(), &response);
-}
-void PUT_tests(){
-
-  //para usar con put un string en forma de json, con un parametro variable, hay que concatenar los strings
-  //forma manual:
-  int temperatura_actual = 0;
-  String putBody_t = " 'valor' : " + temperatura_actual;
-  putBody_t = "{ 'idtipo_sensor' : 1234,"+ putBody_t + ", 'idsensor' : 1}";
-  //------------------------------------------------------------------------------------------------------------------------------------
-  //crear un string en forma de json, sin variables
-  String putBody = "{'idsensor' : 1234, 'tipo' : 'termico', 'nombre' : 'DHT11', 'iddispositivo' : 1}";
-  //------------------------------------------------------------------------------------------------------------------------------------
-  String contentType = "application/json";
-  String value = "{\"idusuario\": 7,\"nombre\": \"visualStudio\",\"contraseña\": \"code\",\"ciudad\": \"tusm\"}";
-
-
-
-  client_http.put("/api/putTipo_Sensor/1",contentType,"{\"idtipo_sensor\": 1,\"valor\": 60,\"idsensor\": 1}");
-  int statusCode = client_http.responseStatusCode();
-  String response = client_http.responseBody();
-  Serial.println(statusCode);
-  Serial.println(response);
-  //prueba1 --> te devuelve unicamente el codigo de estado de la peticion
-  //client_http.put("/sensors", putBody.c_str()); //introducimos el cuerpo
-
-  //prueba2 --> put con respuesta
-  //client_http.put("/sensors", putBody.c_str(), &response); //introducimos el cuerpo, y escribimos en response la respuesta
-
-  //prueba3 --> put con cabecera
-  //client_http.setHeader("Content-Type: application/json"); 
-  //client_http.put("/sensors", putBody.c_str()); //introducimos el cuerpo
-
-  //prueba4 --> put cabecera Y respuesta
-  //client_http.setHeader("Content-Type: application/json");
-  //client_http.put("/sensors", putBody.c_str(), &response); 
-}
-
-
-/////////////////////////////// FUNCIONES DE SENSORES ///////////////////////////
-
-//SENSOR DHT11
-void sensor_DHT11(){
-  Serial.println("");
-  Serial.print(("DHT11 test:"));
-  float h = dht.readHumidity();
-  float t = dht.readTemperature(); // or dht.readTemperature(true) for Fahrenheit
-  if (isnan(h) || isnan(t)) {
-    Serial.println("Failed to read from DHT sensor!");
-    return;
-  }
-  Serial.print(("  Temperature: "));
-  Serial.print(t);
-  Serial.print((" grados ||"));
-  delay(1500);
-  Serial.print(("  Humededity: "));
-  Serial.print(h);
-  Serial.print("% ");
-  delay(1500);
-
-  //métodos rest
-  String contentType = "application/json";
-  
-  //put infosensor ---> idsensor  /  tipo  /  nombre  /  last_value1  /  last_value2  /  iddispositivo
-  Serial.println("");
-  Serial.print("PUT DHT_11..............");
-  String body_info = serialize_Sensor_Info(id_dht11, tipo_dht11, nombre_dth11, t, h, 1);
-  client_http.beginRequest();
-  client_http.put("/api/PutInfoSensor/333",contentType,body_info.c_str());
-  Serial.println("");
-  Serial.print("Code: ");
-  Serial.print(client_http.responseStatusCode());
-  Serial.println("");
-  Serial.print("Body: ");
-  Serial.print(client_http.responseBody());
-  client_http.endRequest();
-  
-  delay(1500);
-
-  //post datasensor --> timestamp  /  valor1  /  valor2  /  idsensor 
-  //String time_ =  __TIME__; String date_ = __DATE__; String fecha = time_+"_"+date_;
-  ii = ii + 1; String i = ""; i = i+ii;
-
-  Serial.println("");
-  Serial.print("POST DHT_11..............");
-  String body_data = serialize_Sensor_Data(i, t, h, id_dht11);
-
-  client_http.beginRequest();
-  client_http.post("/api/Post_Data_Sensor/", contentType, body_data);
-  int code = client_http.responseStatusCode();
-  if(code==200 || code==201){
-    Serial.println("");
-    Serial.print("Code: ");
-    Serial.print(code);
-    Serial.println("");
-    Serial.print("Body: ");
-    Serial.print(client_http.responseBody());
-   }else if(code == 401){
-    Serial.println("");
-    Serial.print("Code: ");
-    Serial.print(code);
-    Serial.print(" --> Fecha ya existente");
-  }else{
-    Serial.println("");
-    Serial.print("Código de error: ");
-    Serial.print(code);
-  }
-  client_http.endRequest();
-  
-}
-
-//SENSOR MQ2
-void sensor_MQ_2(){
-  Serial.println("");
-  Serial.print("MQ-2 test:");
-  float h = analogRead(A0);
-    if(isnan(h)){
-      Serial.println("");
-      Serial.print("ERROR NO DETECTA SENSOR MQ-2");
-      return;
-    }
-  Serial.print("Nivel de gas: ");
-  Serial.print(h/1023*100);
-  delay(1500);
-
-  //métodos rest
-  String contentType = "application/json";
-
-  //put infosensor ---> idsensor  /  tipo  /  nombre  /  last_value1  /  last_value2  /  iddispositivo 
-  
-  Serial.println("");
-  Serial.print("PUT MQ-2.............. ");
-  String body_info = serialize_Sensor_Info(id_mq2, tipo_mq2, nombre_mq2, h/1023*100, 00.00, 1);
-  
-  client_http.beginRequest();
-  client_http.put("/api/PutInfoSensor/90", contentType, body_info.c_str());
-  Serial.println("");
-  Serial.print("Code: ");
-  Serial.print(client_http.responseStatusCode());
-
-  Serial.println("");
-  Serial.print("Body: ");
-  Serial.print(client_http.responseBody());
-  client_http.endRequest();
-  
-  delay(1500);
-
-  //post datasensor --> timestamp  /  valor1  /  valor2  /  idsensor 
-  //String time_ =  __TIME__; String date_ = __DATE__; String fecha = time_+"__"+date_;
-  jj = jj + 1; String j = ""; j = j + jj;
-  
-  Serial.println("");
-  Serial.print("POST MQ-2.............."); 
-  String body_data = serialize_Sensor_Data(j, h/1023*100, 00.00, id_mq2);
-
-  client_http.beginRequest();
-  client_http.post("/api/Post_Data_Sensor/", contentType, body_data);
-  int code = client_http.responseStatusCode();
-  if(code==200 || code==201){
-    Serial.println("");
-    Serial.print("Code: ");
-    Serial.print(code);
-    Serial.println("");
-    Serial.print("Body: ");
-    Serial.print(client_http.responseBody());
-  }else if(code == 401){
-    Serial.println("");
-    Serial.print("Code: ");
-    Serial.print(code);
-    Serial.print(" --> Fecha ya existente");
-  }else{
-    Serial.println("");
-    Serial.print("Código de error: ");
-    Serial.print(code);
-  }
-  client_http.endRequest();
-}
+/////////////////////////////// FUNCIONES DE SENSORES ///////////////
 
 //SENSOR GPS
-/*
-void displayInfo()
+void init_GPS(){ //INICIALIZACIÓN EN SETUP: introduzco con un post del sensor gps correspondiente a la base de datos -->  Info_Sensor y en Tipo_GPS
+
+  String contentType = "application/json";
+
+  //POST EN INFO_SENSOR
+  Serial.print("\n\n  --  POST_1 GPS (setup) --> INFO_SENSOR --");
+  String body_info_sensor = serialize_Sensor_Info(idsensor_gps, tipo_gps, nombre_gps, 00.00, 00.00, 1);
+
+  client_http.beginRequest();
+  client_http.post("/api/Post_Info_Sensor/", contentType, body_info_sensor.c_str());
+  int code_gps_info = client_http.responseStatusCode();
+  if(code_gps_info==200 || code_gps_info==201){
+    Serial.print("\nCode: ");
+    Serial.print(code_gps_info);
+    Serial.print("\nBody: ");
+    Serial.print(client_http.responseBody());
+  }else if(code_gps_info == 401){
+    Serial.print("\nCode: ");
+    Serial.print(code_gps_info);
+    Serial.print(" --> Sensor ya instalado");
+  }else{
+    Serial.print("\nCódigo de error: ");
+    Serial.print(code_gps_info);
+  }
+  client_http.endRequest();
+
+
+  //POST Tipo_gps ---> idtipo_gps  /  x  /  y  /  idsensor  
+  Serial.print("\n\n  --  POST_2 GPS (setup) --> TIPO_GPS --");
+  String body_info_gps = serialize_GPS_Info(idtipo_gps, 00.00, 00.00, idsensor_gps);
+
+  client_http.beginRequest();
+  client_http.post("/api/PostGPS/", contentType, body_info_gps.c_str());
+  int code_gps = client_http.responseStatusCode();
+  if(code_gps==200 || code_gps==201){
+    Serial.print("\nCode: ");
+    Serial.print(code_gps);
+    Serial.print("\nBody: ");
+    Serial.print(client_http.responseBody());
+  }else if(code_gps == 401){
+    Serial.print("\nCode: ");
+    Serial.print(code_gps);
+    Serial.print(" --> Sensor ya instalado");
+  }else{
+    Serial.print("\nCódigo de error: ");
+    Serial.print(code_gps);
+  }
+  client_http.endRequest();
+}
+
+void sensor_GPS(){ //FUNCION EN LOOP: para actualizar los valores del sensor gps con un POST en Data_Sensor y dos PUTS en Info_Sensor y Tipo_gps
+
+  float x = random(100000);
+  float y = random(100000);
+
+  //post datasensor --> timestamp  /  valor_X  /  valor_Y  /  idsensor 
+  Serial.println(("\n POST PERIÓDICO GPS --> DATA_SENSOR:"));
+  String contentType = "application/json";
+  String body_data_sensor = serialize_Sensor_Data("null", x, y, idsensor_gps);
+
+  client_http.beginRequest();
+  client_http.post("/api/Post_Data_Sensor/", contentType, body_data_sensor.c_str());
+  int code = client_http.responseStatusCode();
+  if(code==200 || code==201){
+    Serial.print("\nCode: ");
+    Serial.print(code);
+    Serial.print("\nBody: ");
+    Serial.print(client_http.responseBody());
+   }else if(code == 401){
+    Serial.print("\nCode: ");
+    Serial.print(code);
+    Serial.print(" --> Fecha ya existente");
+  }else{
+    Serial.print("\nCódigo de error: ");
+    Serial.print(code);
+  }
+  client_http.endRequest();
+
+
+  //PUT Info_Sensor ---> idsensor  /  tipo  /  nombre  /  last_value1  /  last_value2  /  iddispositivo
+  Serial.println(("\n PUT PERIÓDICO GPS --> INFO_SENSOR:"));
+  String body_info_sensor = serialize_Sensor_Info(idsensor_gps, tipo_gps, nombre_gps, x, y, 1);
+
+  client_http.beginRequest();
+  client_http.put("/api/PutInfoSensor/490",contentType,body_info_sensor.c_str());
+  Serial.print("\nCode: ");
+  Serial.print(client_http.responseStatusCode());
+  Serial.print("\nBody: ");
+  Serial.print(client_http.responseBody());
+  client_http.endRequest();
+  
+
+  //PUT Tipo_gps ---> idtipo_gps  /  x  /  y  /  idsensor  
+  Serial.print("\n\n  --  PUT PERIÓDICO GPS --> TIPO_GPS --");
+  String body_info_gps = serialize_GPS_Info(idtipo_gps, x, y, idsensor_gps);
+
+  client_http.beginRequest();
+  client_http.put("/api/PutSensorGPS/490", contentType, body_info_gps.c_str());
+  Serial.print("\nCode: ");
+  Serial.print(client_http.responseStatusCode());
+  Serial.print("\nBody: ");
+  Serial.print(client_http.responseBody());
+  client_http.endRequest();
+}
+
+/*void displayInfo() //OPCION_1
 {
   Serial.print(F("Location: ")); 
   if (gps.location.isValid())
@@ -620,102 +472,262 @@ void displayInfo()
 
   Serial.println();
 }
-*/
+void printData() //OPCION_2
+{
+    if (gps.location.isUpdated()) {
+        double lat = gps.location.lat();
+        double lng = gps.location.lng();
+ 
+        double altitude = gps.altitude.meters();
+ 
+        int year = gps.date.year();
+        int month = gps.date.month();
+        int day = gps.date.day();
+ 
+        int hour = gps.time.hour();
+        int minute = gps.time.minute();
+        int second = gps.time.second();
+ 
+        snprintf(buffer, sizeof(buffer),
+                 "Latitude: %.8f, Longitude: %.8f, Altitude: %.2f m, "
+                 "Date/Time: %d-%02d-%02d %02d:%02d:%02d",
+                 lat, lng, altitude, year, month, day, hour, minute, second);
+ 
+        Serial.println(buffer);
+    }
+}*/
+
+//SENSOR DHT11
+void init_DTH_11(){ //INICIALIZACIÓN EN SETUP: introduzco con un post el sensor correspondiente a la base de datos --> Info_Sensor
+
+  Serial.print("\n\n  --  POST DHT_11 (setup) --> INFO_SENSOR --");
+
+  String contentType = "application/json";
+  dht.begin();
+  String body_info = serialize_Sensor_Info(id_dht11, tipo_dht11, nombre_dth11, 00.00, 00.00, 1);
+
+  client_http.beginRequest();
+  client_http.post("/api/Post_Info_Sensor/", contentType, body_info.c_str());
+  int code_dht = client_http.responseStatusCode();
+  if(code_dht==200 || code_dht==201){
+    Serial.print("\nCode: ");
+    Serial.print(code_dht);
+    Serial.print("\nBody: ");
+    Serial.print(client_http.responseBody());
+  }else if(code_dht == 401){
+    Serial.print("\nCode: ");
+    Serial.print(code_dht);
+    Serial.print(" --> Sensor ya instalado");
+  }else{
+    Serial.print("\nCódigo de error: ");
+    Serial.print(code_dht);
+  }
+  client_http.endRequest();
+}
+
+void sensor_DHT11(){ //FUNCION EN LOOP: para actualizar los valores del sensor con un put en Info_Sensor y un post en Data_Sensor
+
+  //lectura de temperatura y humedad:
+  Serial.print(("\nDHT11 test --> "));
+  float h = dht.readHumidity();
+  float t = dht.readTemperature(); // or dht.readTemperature(true) for Fahrenheit
+  if (isnan(h) || isnan(t)) {
+    Serial.println("Failed to read from DHT sensor!");
+    return;
+  }
+
+  ventana_open(t,h,0);
+
+  Serial.print(("  Temperature: "));
+  Serial.print(t);
+  Serial.print((" grados ||"));
+  delay(1500);
+  Serial.print(("  Humededity: "));
+  Serial.print(h);
+  Serial.print("% ");
+  delay(1500);
+
+
+  //métodos rest
+  String contentType = "application/json";
+  
+  //put infosensor ---> idsensor  /  tipo  /  nombre  /  last_value1  /  last_value2  /  iddispositivo
+  Serial.print("\n\n  --  PUT PERIÓDICO DHT_11 --> INFO_SENSOR --");
+  String body_info = serialize_Sensor_Info(id_dht11, tipo_dht11, nombre_dth11, t, h, 1);
+  client_http.beginRequest();
+  client_http.put("/api/PutInfoSensor/12",contentType,body_info.c_str());
+  Serial.print("\nCode: ");
+  Serial.print(client_http.responseStatusCode());
+  Serial.print("\nBody: ");
+  Serial.print(client_http.responseBody());
+  client_http.endRequest();
+  
+  delay(1500);
+
+  //post datasensor --> timestamp  /  valor1  /  valor2  /  idsensor 
+
+  Serial.print("\n\n  --  POST PERIÓDICO DHT_11 --> DATA_SENSOR --");
+  String body_data = serialize_Sensor_Data("null", t, h, id_dht11);
+
+  client_http.beginRequest();
+  client_http.post("/api/Post_Data_Sensor/", contentType, body_data);
+  int code = client_http.responseStatusCode();
+  if(code==200 || code==201){
+    Serial.print("\nCode: ");
+    Serial.print(code);
+    Serial.print("\nBody: ");
+    Serial.print(client_http.responseBody());
+   }else if(code == 401){
+    Serial.print("\nCode: ");
+    Serial.print(code);
+    Serial.print(" --> Fecha ya existente");
+  }else{
+    Serial.print("\nCódigo de error: ");
+    Serial.print(code);
+  }
+  client_http.endRequest();
+}
+
+//SENSOR MQ2
+void init_MQ_2(){ //INICIALIZACIÓN EN SETUP: introduzco con un post el sensor correspondiente a la base de datos --> Info_Sensor
+
+  Serial.print("\n\n  --  POST MQ-2 (setup) --> INFO_SENSOR --");
+
+  String contentType = "application/json";
+  String body_info = serialize_Sensor_Info(id_mq2, tipo_mq2, nombre_mq2, 00.00, 00.00, 1);
+
+  client_http.beginRequest();
+  client_http.post("/api/Post_Info_Sensor/", contentType, body_info.c_str());
+  int code_mq2 = client_http.responseStatusCode();
+  if(code_mq2==200 || code_mq2==201){
+    Serial.print("\nCode: ");
+    Serial.print(code_mq2);
+    Serial.print("\nBody: ");
+    Serial.print(client_http.responseBody());
+  }else if(code_mq2 == 401){
+    Serial.print("\nCode: ");
+    Serial.print(code_mq2);
+    Serial.print(" --> Sensor ya instalado");
+  }else{
+    Serial.print("\nCódigo de error: ");
+    Serial.print(code_mq2);
+  }
+  client_http.endRequest();
+}
+
+void sensor_MQ_2(){ //FUNCION EN LOOP: para actualizar los valores del sensor con un put en Info_Sensor y un post en Data_Sensor
+
+  //lectura mq-2
+  Serial.print("\n\nMQ-2 test -> ");
+  float h = analogRead(A0);
+    if(isnan(h)){
+      Serial.println("ERROR NO DETECTA SENSOR MQ-2");
+      return;
+    }
+
+  ventana_open(0,0,h/1023*100); 
+
+  Serial.print("Nivel de gas: ");
+  Serial.print(h/1023*100);
+  delay(1500);
+
+  //métodos rest
+  String contentType = "application/json";
+
+  //put infosensor ---> idsensor  /  tipo  /  nombre  /  last_value1  /  last_value2  /  iddispositivo 
+  Serial.print("\n\n  --  PUT PERIÓDICO MQ-2 --> INFO_SENSOR --");
+  String body_info = serialize_Sensor_Info(id_mq2, tipo_mq2, nombre_mq2, h/1023*100, 00.00, 1);
+  
+  client_http.beginRequest();
+  client_http.put("/api/PutInfoSensor/2", contentType, body_info);
+  Serial.print("\nCode: ");
+  Serial.print(client_http.responseStatusCode());
+  Serial.print("\nBody: ");
+  Serial.print(client_http.responseBody());
+  client_http.endRequest();
+  
+  delay(1500);
+
+  //post datasensor --> timestamp  /  valor1  /  valor2  /  idsensor 
+  
+  Serial.print("\n\n  --  POST PERIÓDICO MQ-2 --> DATA_SENSOR --");
+  String body_data = serialize_Sensor_Data("null", h/1023*100, 00.00, id_mq2);
+
+  client_http.beginRequest();
+  client_http.post("/api/Post_Data_Sensor/", contentType, body_data);
+  int code = client_http.responseStatusCode();
+  if(code==200 || code==201){
+    Serial.print("\nCode: ");
+    Serial.print(code);
+    Serial.print("\nBody: ");
+    Serial.print(client_http.responseBody());
+  }else if(code == 401){
+    Serial.print("\nCode: ");
+    Serial.print(code);
+    Serial.print(" --> Fecha ya existente");
+  }else{
+    Serial.print("\nCódigo de error: ");
+    Serial.print(code);
+  }
+  client_http.endRequest();
+}
+
 
 //______________________________________________________________________________//
 //______________________________________________________________________________//
+/////////////////////////////// TICKERS //////////////////////////////////////////
+Ticker timer_gps(sensor_GPS,60000); //1 MIN
+Ticker timer_dht11(sensor_DHT11, 240000); // 4 MIN
+Ticker timer_mq2(sensor_MQ_2, 120000); //2 MIN
+//////////////////////////////////////////////////////////////////////////////////
 
 
 //////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////// SETUP ////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////
 
-/////////////////////////////// TICKERS //////////////////////////////////////////////
-Ticker timer_dht11(sensor_DHT11, 7000);
-Ticker timer_mq2(sensor_MQ_2, 10000);
-
 void setup(){
   delay(3000);
   Serial.begin(9600);
+  Serial.println("\n\nDispositivo arrancado.");
 
   //INICIO CONEXIÓN WIFI
-    Serial.println("Device started...");
-    delay(1000);
     setup_wifi();
 
   //INICIO CONEXIÓN MQTT
-    Serial.println("MQTT Started...");
-    delay(1000);
     mqtt_setup();
-  
-  //INICIALIZACIÓN DE PERIFÉRICOS:
-    String contentType = "application/json";
-    dht.begin();
-    delay(1000);
 
-      //INICIALIZACIÓN DE DHT11 // post: idsensor  /  tipo  /  nombre  /  last_value1  /  last_value2  /  iddispositivo
-      Serial.println("");
-      Serial.print("POST DHT11 setup..............");
-      String value_dht_11 = serialize_Sensor_Info(id_dht11, tipo_dht11, nombre_dth11, 00.00, 00.00, 1);
+  //SERVIDOR HTTP PARA ESP8266NODE
+    server.begin(); //Iniciamos el servidor
+    Serial.print("\n\nServidor ESP Iniciado -->");
+    Serial.print("Ingrese desde un navegador web usando la siguiente IP --> ");
+    Serial.print(WiFi.localIP()); //Obtenemos la IP
 
-      client_http.beginRequest();
-      client_http.post("/api/Post_Info_Sensor/", contentType, value_dht_11.c_str());
-      int code_dht = client_http.responseStatusCode();
-      if(code_dht==200 || code_dht==201){
-        Serial.println("");
-        Serial.print("Code: ");
-        Serial.print(code_dht);
-        Serial.println("");
-        Serial.print("Body: ");
-        Serial.print(client_http.responseBody());
+  //INICIALIZACIÓN GPS  --> POST1: idsensor  /  tipo  /  nombre  /  last_value1  /  last_value2  /  iddispositivo || POST2: idtipo_gps  /  x  /  y  /  idsensor 
+    init_GPS();
+    //gpsSerial.begin(GPSBaud);
 
-      }else if(code_dht == 401){
-        Serial.println("");
-        Serial.print("Code: ");
-        Serial.print(code_dht);
-        Serial.print(" --> Sensor ya instalado");
-      }else{
-        Serial.println("");
-        Serial.print("Código de error: ");
-        Serial.print(code_dht);
-      }
-      client_http.endRequest();
-      delay(1500);
+  //INICIALIZACIÓN DE DHT11 --> POST: idsensor  /  tipo  /  nombre  /  last_value1  /  last_value2  /  iddispositivo
+    init_DTH_11();
 
-      //INICIALIZACIÓN DE MQ-2 // post: idsensor  /  tipo  /  nombre  /  last_value1  /  last_value2  /  iddispositivo
-      Serial.println("");
-      Serial.print("POST MQ-2 setup..............");
-      String body_info = serialize_Sensor_Info(id_mq2, tipo_mq2, nombre_mq2, 00.00, 00.00, 1);
+  //INICIALIZACIÓN DE MQ-2 --> POST: idsensor  /  tipo  /  nombre  /  last_value1  /  last_value2  /  iddispositivo
+    init_MQ_2();
 
-      client_http.beginRequest();
-      client_http.post("/api/Post_Info_Sensor/", contentType, body_info.c_str());
-      int code_mq2 = client_http.responseStatusCode();
-      if(code_mq2==200 || code_mq2==201){
-        Serial.println("");
-        Serial.print("Code: ");
-        Serial.print(code_mq2);
-        Serial.println("");
-        Serial.print("Body: ");
-        Serial.print(client_http.responseBody());
-      }else if(code_mq2 == 401){
-        Serial.println("");
-        Serial.print("Code: ");
-        Serial.print(code_mq2);
-        Serial.print(" --> Sensor ya instalado");
-      }else{
-        Serial.println("");
-        Serial.print("Código de error: ");
-        Serial.print(code_mq2);
-      }
-      client_http.endRequest();
-      delay(1500);
+  //INICIALIZACIÓN DE ALTAVOZ
+    audioLogger = &Serial;
+    file = new AudioFileSourcePROGMEM( viola, sizeof(viola) );
+    out = new AudioOutputI2SNoDAC();
+    wav = new AudioGeneratorWAV();
+    //wav->begin(file, out);
 
-      //INICIALIZACIÓN GPS
-      //ss.begin(GPSBaud);
+  //INICIALIZACION SERVO
+    myservo1.attach(D2); 
+    myservo2.attach(D0); 
 
   //Start tickers
-  timer_dht11.start();
-  timer_mq2.start();
+    timer_gps.start();
+    timer_dht11.start();
+    timer_mq2.start();
 }
 
 //////////////////////////////////////////////////////////////////////////////////
@@ -723,21 +735,24 @@ void setup(){
 //////////////////////////////////////////////////////////////////////////////////
 
 
-void loop()
-{
-  //GET_tests();
-  //POST_tests();
-  //PUT_tests();
-  
-  mqtt_loop();
 
+void loop(){
+  mqtt_loop();
+  
+  //COMPROBACIÓN DE ALTAVOZ
+  if (wav->isRunning()) {
+    if (!wav->loop()) wav->stop();
+  }
+  
   //ACTUALIZACIÓN DE SENSORES
+  timer_gps.update();
   timer_dht11.update();
   timer_mq2.update();
-
-      /*
- while (ss.available())
-    if (gps.encode(ss.read()))
+  
+//GPS
+/* OPCION_1
+  while (gpsSerial.available())
+    if (gps.encode(gpsSerial.read()))
       displayInfo();
 
   if (millis() > 5000 && gps.charsProcessed() < 10)
@@ -745,37 +760,114 @@ void loop()
     Serial.println(F("No GPS detected: check wiring."));
     while(true);
   }
-  */
-  //loop_timer();
-
-
-  /*
-  tmElements_t tm;
-  if (RTC.read(tm)) {
-    Serial.print("Ok, Time = ");
-    print2digits(tm.Hour);
-    Serial.write(':');
-    print2digits(tm.Minute);
-    Serial.write(':');
-    print2digits(tm.Second);
-    Serial.print(", Date (D/M/Y) = ");
-    Serial.print(tm.Day);
-    Serial.write('/');
-    Serial.print(tm.Month);
-    Serial.write('/');
-    Serial.print(tmYearToCalendar(tm.Year));
-    Serial.println();
-  } else {
-    if (RTC.chipPresent()) {
-      Serial.println("The DS1307 is stopped.  Please run the SetTime");
-      Serial.println("example to initialize the time and begin running.");
-      Serial.println();
-    } else {
-      Serial.println("DS1307 read error!  Please check the circuitry.");
-      Serial.println();
+*/ 
+/* OPCION_1.2
+  while (gpsSerial.available() > 0)
+    if (gps.encode(ss.read()))
+    {
+      displayInfo();
+      if (gps.location.isValid())
+      {
+        latitude = gps.location.lat();
+        lat_str = String(latitude , 6);
+        longitude = gps.location.lng();
+        lng_str = String(longitude , 6);
+        Serial.println(lat_str + lng_str);
+      }
     }
-    delay(9000);
+*/
+/* OPCION_2 
+   while (gpsSerial.available() > 0) {
+        if (gps.encode(gpsSerial.read())) {
+            printData();
+        }
+    }
+ */
+
+WiFiClient client = server.available();
+  if (client) //Si hay un cliente presente
+  { 
+    Serial.println("Nuevo Cliente");
+    
+
+    //esperamos hasta que hayan datos disponibles
+    while(!client.available()&&client.connected()){
+    delay(1);
+    }
+    
+    // Leemos la primera línea de la petición del cliente.
+    String linea1 = client.readStringUntil('r');
+    Serial.println(linea1);
+
+    if (linea1.indexOf("CALOR=ON")>0){ //Buscamos un CALOR=ON en la 1°Linea
+      for (int angulo = 0; angulo <= 90; angulo += 1){ 
+        myservo1.write(angulo);      
+        myservo2.write(angulo);                      
+        delay(10); 
+      }
+    }
+    if (linea1.indexOf("FRIO=OFF")>0){//Buscamos un FRIO=OFF en la 1°Linea
+      for (int angulo = 90; angulo >= 0; angulo -= 1){ 
+        myservo1.write(angulo);  
+        myservo2.write(angulo);              
+        delay(10);  
+      }
+    }
+    if (linea1.indexOf("BAJARSE")>0){
+      for (int angulo = 0; angulo <= 180; angulo += 1){ 
+        myservo1.write(angulo);      
+        myservo2.write(180-angulo);              
+        delay(20); 
+      }
+      delay(3000); 
+      for (int angulo = 180; angulo >= 0; angulo -= 1){ 
+        myservo1.write(180-angulo);
+        myservo2.write(angulo);                
+        delay(20);  
+      }
+    }
+    if (linea1.indexOf("SUBIRSE")>0){
+      for (int angulo = 0; angulo <= 180; angulo += 1){ 
+        myservo1.write(180-angulo); 
+        myservo2.write(angulo);                         
+        delay(10); 
+      }
+      delay(3000); 
+      for (int angulo = 180; angulo >= 0; angulo -= 1){ 
+        myservo1.write(angulo);
+        myservo2.write(180-angulo);                
+        delay(10);  
+      }
+    }
+    client.flush(); 
+                
+    Serial.println("Enviando respuesta...");   
+    //Encabesado http    
+    client.println("HTTP/1.1 200 OK");
+    client.println("Content-Type: text/html");
+    client.println("Connection: close");// La conexión se cierra después de finalizar de la respuesta
+    client.println();
+    //Pagina html  para en el navegador
+    String s="<!DOCTYPE HTML>";
+    s+="<html>";
+    s+="<head><title>COVIDBUS</title>";
+    s+="<body>";
+    s+="<h1 align='center'> COVIDBUS </h1>";
+    s+="<div style='text-align:center;'>";
+    s+="Temperatura de hoy: "+temperatura_+" grados ||";
+    s+=" Humedad de hoy: "+humedad_ +" % ||";
+    s+=" Nivel de GAS de hoy: "+nivel_gas_;
+    s+="<br/><br/>";
+    s+="<button onClick=location.href='./?CALOR=ON'>CALOR</button>";
+    s+="<button onClick=location.href='./?FRIO=OFF'>FRIO</button>";
+    s+="<br/><br/>";
+    s+="<div><button onClick=location.href='./?BAJARSE'>PULSA PARA BAJARTE</button></div>";
+    s+="<div><button onClick=location.href='./?SUBIRSE'>PULSA PARA SUBIRTE</button></div>";
+    s+="<br/><br/>";
+    s+= "</body> </html> \n";
+    client.println(s);
+    delay(1);
+    Serial.println("respuesta enviada");
+    Serial.println();
   }
-  delay(1000);
-  */
 }
