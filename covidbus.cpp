@@ -92,9 +92,15 @@ void ventana_open(float temp, float hum, float gas){ // funcion para comprobar l
       delay(10); 
     }
   }
-temperatura_ = temp;
-humedad_ = hum;
-nivel_gas_ = gas;
+  if(temp>0){
+    temperatura_ = temp;
+  }
+  if(hum>0){
+    humedad_ = hum;
+  }
+  if(gas>0){
+    nivel_gas_ = gas;
+  }
 }
 
 
@@ -733,8 +739,6 @@ void setup(){
 //////////////////////////////////////////////////////////////////////////////////
 /////////////////////////////// LOOP /////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////
-
-
 
 void loop(){
   mqtt_loop();
